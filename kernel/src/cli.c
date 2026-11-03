@@ -5,6 +5,9 @@
 #include "../include/task.h"
 #include "../include/vfs.h"
 
+#define OS_VERSION "v1.0.0"
+#define BASE_KERNEL "x86 Bare-Metal Kernel"
+
 void cli_print_logo(void) {
   vga_set_color(12, 0); // Warna Merah Terang (VGA color code 12)
   vga_print("========================================================\n");
@@ -94,7 +97,7 @@ void cli_process_command(const char *cmd) {
   if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
     vga_print("\nDaftar Perintah CLI:\n");
     vga_print("  help      - Menampilkan bantuan ini\n");
-    vga_print("  version   - Menampilkan versi Pulse-OS\n");
+    vga_print("  version   - Menampilkan versi Pulse-OS \n");
     vga_print("  meminfo   - Status alokasi memori dinamis\n");
     vga_print("  ls        - List file di VFS RAMDisk\n");
     vga_print("  tasks     - Status thread & scheduler\n");
@@ -104,7 +107,7 @@ void cli_process_command(const char *cmd) {
     vga_print("  shutdown  - Mematikan sistem\n");
   } else if (cmd[0] == 'v' && cmd[1] == 'e' && cmd[2] == 'r' && cmd[3] == 's' &&
              cmd[4] == 'i' && cmd[5] == 'o' && cmd[6] == 'n') {
-    vga_print("\nPulse-OS v1.0.0 (x86 Bare-Metal Kernel)\n");
+    vga_print("\nPulse-OS " OS_VERSION " (" BASE_KERNEL ")\n");
   } else if (cmd[0] == 'm' && cmd[1] == 'e' && cmd[2] == 'm' && cmd[3] == 'i' &&
              cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'o') {
     print_memory_stats();
@@ -117,9 +120,11 @@ void cli_process_command(const char *cmd) {
              cmd[4] == 'r') {
     vga_clear();
     cli_print_logo();
-  } else if ((cmd[0] == 'l' && cmd[1] == 'o' && cmd[2] == 'g' && cmd[3] == 's') ||
-             (cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' && cmd[3] == 't' &&
-              cmd[4] == 'o' && cmd[5] == 'r' && cmd[6] == 'y')) {
+  } else if ((cmd[0] == 'l' && cmd[1] == 'o' && cmd[2] == 'g' &&
+              cmd[3] == 's') ||
+             (cmd[0] == 'h' && cmd[1] == 'i' && cmd[2] == 's' &&
+              cmd[3] == 't' && cmd[4] == 'o' && cmd[5] == 'r' &&
+              cmd[6] == 'y')) {
     cli_show_logs();
   } else if ((cmd[0] == 'r' || cmd[0] == 'R') &&
              (cmd[1] == 'e' || cmd[1] == 'E') &&
@@ -129,10 +134,12 @@ void cli_process_command(const char *cmd) {
              (cmd[5] == 'r' || cmd[5] == 'R') &&
              (cmd[6] == 't' || cmd[6] == 'T')) {
     sys_restart();
-  } else if ((cmd[0] == 's' && cmd[1] == 'h' && cmd[2] == 'u' && cmd[3] == 't' &&
-              cmd[4] == 'd' && cmd[5] == 'o' && cmd[6] == 'w' && cmd[7] == 'n') ||
-             (cmd[0] == 'p' && cmd[1] == 'o' && cmd[2] == 'w' && cmd[3] == 'e' &&
-              cmd[4] == 'r' && cmd[5] == 'o' && cmd[6] == 'f' && cmd[7] == 'f')) {
+  } else if ((cmd[0] == 's' && cmd[1] == 'h' && cmd[2] == 'u' &&
+              cmd[3] == 't' && cmd[4] == 'd' && cmd[5] == 'o' &&
+              cmd[6] == 'w' && cmd[7] == 'n') ||
+             (cmd[0] == 'p' && cmd[1] == 'o' && cmd[2] == 'w' &&
+              cmd[3] == 'e' && cmd[4] == 'r' && cmd[5] == 'o' &&
+              cmd[6] == 'f' && cmd[7] == 'f')) {
     sys_shutdown();
   } else {
     vga_print("\nPerintah tidak dikenal. Ketik 'help'.\n");
