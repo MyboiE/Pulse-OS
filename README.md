@@ -1,6 +1,8 @@
 # Pulse-OS
 
-Pulse-OS adalah kernel sistem operasi **x86 32-bit bare-metal** yang dibuat dari nol menggunakan **C** dan **Assembly (NASM)**. Kernel di-boot lewat standar **Multiboot**, sehingga bisa dijalankan langsung di **QEMU** maupun lewat **GRUB** (ISO).
+Bukan Distribusi Linux, Bukan juga Sistem operasi yang proper. Pulse-OS adalah kernel sistem operasi **x86 32-bit bare-metal** yang dibuat menggunakan **C** dan **Assembly (NASM)** dengan modal iman dan taqwa. OS ini Bertujuan untuk menjadi salah satu projek tugas besar yang kami lakukan untuk memahami cara kerja dan inmplementasi Sistem Operasi terhadap kasus tertentu yang pada kali ini yakni sistem manajemen gawat darurat pada IGD.
+
+Kernel di-boot lewat standar **Multiboot**, sehingga bisa dijalankan langsung di **QEMU** maupun lewat **GRUB** (ISO).
 
 Versi saat ini: **v1.0.0**
 
@@ -25,6 +27,7 @@ Pulse-OS/
 └── README.md
 ```
 
+
 ## Kebutuhan (Prasyarat)
 
 | Alat | Fungsi | 
@@ -38,6 +41,7 @@ Pulse-OS/
 > **Catatan:** Makefile menghasilkan objek format **ELF 32-bit** (`-m32` + `ld -m elf_i386`). Karena itu proses build harus dilakukan di lingkungan **Linux** (native atau WSL2 di Windows).
 
 ---
+
 
 ## Instalasi & Menjalankan di Linux
 
@@ -106,6 +110,8 @@ make run-iso     # membuat mini-os.iso lalu menjalankannya di QEMU
 File `mini-os.iso` juga bisa dipakai di VirtualBox atau VMware (buat VM baru, pilih tipe *Other / Other 32-bit*, lalu pasang ISO sebagai CD-ROM).
 
 ---
+
+
 
 ## Instalasi & Menjalankan di Windows
 
