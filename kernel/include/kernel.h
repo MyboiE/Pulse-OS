@@ -2,6 +2,7 @@
 #define KERNEL_H
 
 #define NULL ((void*)0)
+#define OS_VERSION "0.1"
 typedef unsigned int size_t;
 
 // Port I/O Helpers

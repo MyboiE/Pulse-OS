@@ -44,8 +44,8 @@ mini-os.iso: mini-os.bin
 	grub-mkrescue -o mini-os.iso isodir
 	rm -rf isodir
 
-# QEMU Flags (Tampilan skala normal 1:1 & serial stdio)
-QEMU_FLAGS ?= -serial stdio -display gtk,zoom-to-fit=off
+# QEMU Flags (Skala tampilan mengikuti ukuran jendela)
+QEMU_FLAGS ?= -serial stdio -display gtk,zoom-to-fit=on
 
 # Perintah untuk Kompilasi + Jalankan Langsung Binary di QEMU
 run: mini-os.bin

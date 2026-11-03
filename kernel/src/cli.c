@@ -5,18 +5,20 @@
 #include "../include/task.h"
 #include "../include/vfs.h"
 
-#define OS_VERSION "v1.0.0"
-#define BASE_KERNEL "x86 Bare-Metal Kernel"
+#define BASE_KERNEL "Based on : x86 Bare-Metal Kernel"
 
 void cli_print_logo(void) {
   vga_set_color(12, 0); // Warna Merah Terang (VGA color code 12)
-  vga_print("========================================================\n");
-  vga_print("       _     ___ _   _ _    ___ ___      ___  ___   \n");
-  vga_print("     _| |_  | _ \\ | | | |  / __| __|___ / _ \\/ __|  \n");
-  vga_print("    |_   _| |  _/ |_| | |__\\__ \\ _||___| (_) \\__ \\ \n");
-  vga_print("      |_|   |_|  \\___/|____|___/___|    \\___/|___/  \n");
-  vga_print("                                                        \n");
-  vga_print("========================================================\n");
+  vga_print("============================================================= \n");
+  vga_print("       _       ____        __                ____  _____    \n");
+  vga_print("     _| |_    / __ /__  __/ /_______        / __ // ___/    \n");
+  vga_print("    |_   _|  / /_/ / / / / / ___/ _ /______/ / / //__ \     \n");
+  vga_print("      |_|   / ____/ /_/ / (__  )  __/_____/ /_/ /___/ /     \n");
+  vga_print("           /_/    /__,_/_/____//___/      /____//____/      \n");
+  vga_print("                                                            \n");
+  vga_print("============================================================= \n");
+  vga_print("              " BASE_KERNEL "                            \n");
+  vga_print("                                                            \n");
   vga_set_color(7, 0); // Kembalikan ke warna default (Abu-abu terang)
 }
 
@@ -96,15 +98,21 @@ void cli_process_command(const char *cmd) {
 
   if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
     vga_print("\nDaftar Perintah CLI:\n");
-    vga_print("  help      - Menampilkan bantuan ini\n");
-    vga_print("  version   - Menampilkan versi Pulse-OS \n");
-    vga_print("  meminfo   - Status alokasi memori dinamis\n");
-    vga_print("  ls        - List file di VFS RAMDisk\n");
-    vga_print("  tasks     - Status thread & scheduler\n");
-    vga_print("  clear     - Membersihkan layar\n");
-    vga_print("  logs      - Menampilkan riwayat log aktivitas perintah\n");
-    vga_print("  restart   - Merestart Pulse-OS\n");
-    vga_print("  shutdown  - Mematikan sistem\n");
+    vga_print("  help      - Tampilkan bantuan\n");
+    vga_print("  version   - Versi Pulse-OS\n");
+    vga_print("  meminfo   - Info penggunaan memori\n");
+    vga_print("\nVFS Commands:\n");
+    vga_print("  ls        - Daftar file VFS\n");
+    vga_print("  create    - Buat file (create <name>)\n");
+    vga_print("  cat       - Baca file (cat <name>)\n");
+    vga_print("  write     - Tulis file (write <name> <data>)\n");
+    vga_print("  rm        - Hapus file (rm <name>)\n");
+    vga_print("\ncommand system\n");
+    vga_print("  tasks     - Status task\n");
+    vga_print("  clear     - Bersihkan layar\n");
+    vga_print("  logs      - Riwayat perintah\n");
+    vga_print("  restart   - Restart Pulse-OS\n");
+    vga_print("  shutdown  - Matikan sistem\n");
   } else if (cmd[0] == 'v' && cmd[1] == 'e' && cmd[2] == 'r' && cmd[3] == 's' &&
              cmd[4] == 'i' && cmd[5] == 'o' && cmd[6] == 'n') {
     vga_print("\nPulse-OS " OS_VERSION " (" BASE_KERNEL ")\n");
@@ -113,6 +121,59 @@ void cli_process_command(const char *cmd) {
     print_memory_stats();
   } else if (cmd[0] == 'l' && cmd[1] == 's') {
     vfs_list();
+  } else if (cmd[0] == 'c' && cmd[1] == 'r' && cmd[2] == 'e' && cmd[3] == 'a' &&
+             cmd[4] == 't' && cmd[5] == 'e' && cmd[6] == ' ') {
+    const char *name = &cmd[7];
+    if (vfs_create(name) == 0) {
+      vga_print("File created\n");
+      serial_print("File created\n");
+    } else {
+      vga_print("Create failed\n");
+      serial_print("Create failed\n");
+    }
+  } else if (cmd[0] == 'r' && cmd[1] == 'm' && cmd[2] == ' ') {
+    const char *name = &cmd[3];
+    if (vfs_delete(name) == 0) {
+      vga_print("File removed\n");
+      serial_print("File removed\n");
+    } else {
+      vga_print("Remove failed\n");
+      serial_print("Remove failed\n");
+    }
+  } else if (cmd[0] == 'c' && cmd[1] == 'a' && cmd[2] == 't' && cmd[3] == ' ') {
+    const char *name = &cmd[4];
+    char buf[256];
+    if (vfs_read(name, buf) == 0) {
+      vga_print(buf);
+      vga_print("\n");
+      serial_print(buf);
+      serial_print("\n");
+    } else {
+      vga_print("Read failed\n");
+      serial_print("Read failed\n");
+    }
+  } else if (cmd[0] == 'w' && cmd[1] == 'r' && cmd[2] == 'i' && cmd[3] == 't' &&
+             cmd[4] == 'e' && cmd[5] == ' ') {
+    // syntax: write <name> <data>
+    const char *p = &cmd[6];
+    // find space separating name and data
+    while (*p && *p != ' ')
+      p++;
+    if (*p) {
+      *(char *)p = '\0'; // terminate name
+      const char *name = &cmd[6];
+      const char *data = p + 1;
+      if (vfs_write(name, data) == 0) {
+        vga_print("File updated\n");
+        serial_print("File updated\n");
+      } else {
+        vga_print("Write failed\n");
+        serial_print("Write failed\n");
+      }
+    } else {
+      vga_print("Usage: write <name> <data>\n");
+      serial_print("Usage: write <name> <data>\n");
+    }
   } else if (cmd[0] == 't' && cmd[1] == 'a' && cmd[2] == 's' && cmd[3] == 'k' &&
              cmd[4] == 's') {
     print_thread_states();
