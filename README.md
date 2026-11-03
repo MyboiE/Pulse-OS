@@ -1,6 +1,6 @@
 # Pulse-OS
 
-Bukan Distribusi Linux, Bukan juga Sistem operasi yang proper. Pulse-OS adalah kernel sistem operasi **x86 32-bit bare-metal** yang dibuat menggunakan **C** dan **Assembly (NASM)** dengan **modal iman dan taqwa**. OS ini Bertujuan untuk menjadi salah satu projek tugas besar yang kami lakukan untuk memahami cara kerja dan implementasi Sistem Operasi terhadap kasus tertentu yang pada kali ini yakni sistem manajemen gawat darurat pada IGD.
+Bukan Distribusi Linux, Bukan juga Sistem operasi yang proper. Pulse-OS adalah sistem operasi yang menggunakan basis kernel **x86 32-bit bare-metal** yang dibuat menggunakan **C** dan **Assembly (NASM)** dengan **modal iman dan taqwa**. OS ini Bertujuan untuk menjadi salah satu projek tugas besar yang kami lakukan untuk memahami cara kerja dan implementasi Sistem Operasi terhadap kasus tertentu yang pada kali ini yakni sistem manajemen gawat darurat pada IGD.
 
 Kernel di-boot lewat standar **Multiboot**, sehingga bisa dijalankan langsung di **QEMU** maupun lewat **GRUB** (ISO).
 
