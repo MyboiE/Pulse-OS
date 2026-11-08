@@ -107,12 +107,13 @@ void cli_process_command(const char *cmd) {
     vga_print("  cat       - Baca file (cat <name>)\n");
     vga_print("  write     - Tulis file (write <name> <data>)\n");
     vga_print("  rm        - Hapus file (rm <name>)\n");
-    vga_print("\ncommand system\n");
-    vga_print("  tasks     - Status task\n");
-    vga_print("  clear     - Bersihkan layar\n");
-    vga_print("  logs      - Riwayat perintah\n");
-    vga_print("  restart   - Restart Pulse-OS\n");
-    vga_print("  shutdown  - Matikan sistem\n");
+    vga_print("\nProcess & Thread:\n");
+    vga_print("  task2thread - Demo 2 kernel thread (transisi 5 status)\n");
+    vga_print("\nSystem:\n");
+    vga_print("  clear       - Bersihkan layar\n");
+    vga_print("  logs        - Riwayat perintah\n");
+    vga_print("  restart     - Restart Pulse-OS\n");
+    vga_print("  shutdown    - Matikan sistem\n");
   } else if (cmd[0] == 'v' && cmd[1] == 'e' && cmd[2] == 'r' && cmd[3] == 's' &&
              cmd[4] == 'i' && cmd[5] == 'o' && cmd[6] == 'n') {
     vga_print("\nPulse-OS " OS_VERSION " (" BASE_KERNEL ")\n");
@@ -175,8 +176,51 @@ void cli_process_command(const char *cmd) {
       serial_print("Usage: write <name> <data>\n");
     }
   } else if (cmd[0] == 't' && cmd[1] == 'a' && cmd[2] == 's' && cmd[3] == 'k' &&
-             cmd[4] == 's') {
-    print_thread_states();
+             cmd[4] == '2' && cmd[5] == 't' && cmd[6] == 'h' && cmd[7] == 'r' &&
+             cmd[8] == 'e' && cmd[9] == 'a' && cmd[10] == 'd') {
+    /* Konfirmasi sebelum mulai demo */
+    vga_print("\nDemo 2 Kernel Thread (transisi 5 status)\n");
+    vga_print("Tekan ENTER untuk mulai, ketik 'q' lalu ENTER untuk batal: ");
+    serial_print("\nDemo 2 Kernel Thread (transisi 5 status)\n");
+    serial_print("Tekan ENTER untuk mulai, ketik 'q' lalu ENTER untuk batal: ");
+    {
+      char confirm[8];
+      int ci = 0;
+      while (1) {
+        char cc = input_getchar();
+        if (cc == '\r' || cc == '\n') {
+          confirm[ci] = '\0';
+          vga_putchar('\n');
+          serial_putchar('\n');
+          break;
+        } else if (cc == '\b' && ci > 0) {
+          ci--;
+          vga_putchar('\b');
+          serial_print("\b \b");
+        } else if (ci < 6 && cc >= 32 && cc <= 126) {
+          confirm[ci++] = cc;
+          vga_putchar(cc);
+          serial_putchar(cc);
+        }
+      }
+      if (confirm[0] == 'q' || confirm[0] == 'Q') {
+        vga_print("Demo dibatalkan.\n");
+        serial_print("Demo dibatalkan.\n");
+      } else {
+        task_demo_run();
+        /* Tunggu user menekan ENTER untuk kembali ke shell */
+        vga_print("Tekan ENTER untuk kembali ke shell...");
+        serial_print("Tekan ENTER untuk kembali ke shell...");
+        while (1) {
+          char wc = input_getchar();
+          if (wc == '\r' || wc == '\n') {
+            vga_putchar('\n');
+            serial_putchar('\n');
+            break;
+          }
+        }
+      }
+    }
   } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' &&
              cmd[4] == 'r') {
     vga_clear();
