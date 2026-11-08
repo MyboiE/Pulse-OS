@@ -1,7 +1,6 @@
 #include "../include/vfs.h"
 #include "../include/kernel.h"
 // removed std lib include
-#include <string.h>
 
 static size_t my_strlen(const char *s) {
   size_t len = 0;
