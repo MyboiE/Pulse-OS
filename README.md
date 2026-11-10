@@ -6,7 +6,6 @@ Kernel di-boot lewat standar **Multiboot**, sehingga bisa dijalankan langsung di
 
 Versi saat ini: **v1.0.0**
 
-
 ## Struktur Proyek
 
 ```
@@ -27,21 +26,19 @@ Pulse-OS/
 └── README.md
 ```
 
-
 ## Kebutuhan (Prasyarat)
 
-| Alat | Fungsi | 
-|------|--------|
-| `gcc` (dengan dukungan `-m32`) | Kompilasi kode C |
-| `nasm` | Merakit `boot.asm` |
-| `ld` (GNU binutils) | Linking kernel |
-| `make` | Menjalankan build |
-| `qemu-system-x86_64` | Menjalankan kernel |
+| Alat                           | Fungsi             |
+| ------------------------------ | ------------------ |
+| `gcc` (dengan dukungan `-m32`) | Kompilasi kode C   |
+| `nasm`                         | Merakit `boot.asm` |
+| `ld` (GNU binutils)            | Linking kernel     |
+| `make`                         | Menjalankan build  |
+| `qemu-system-x86_64`           | Menjalankan kernel |
 
 > **Catatan:** Makefile menghasilkan objek format **ELF 32-bit** (`-m32` + `ld -m elf_i386`). Karena itu proses build harus dilakukan di lingkungan **Linux** (native atau WSL2 di Windows).
 
 ---
-
 
 ## Instalasi & Menjalankan di Linux
 
@@ -107,11 +104,9 @@ Jendela QEMU akan terbuka, lalu shell `Pulse-OS>` muncul. Input juga bisa diketi
 make run-iso     # membuat mini-os.iso lalu menjalankannya di QEMU
 ```
 
-File `mini-os.iso` juga bisa dipakai di VirtualBox atau VMware (buat VM baru, pilih tipe *Other / Other 32-bit*, lalu pasang ISO sebagai CD-ROM).
+File `mini-os.iso` juga bisa dipakai di VirtualBox atau VMware (buat VM baru, pilih tipe _Other / Other 32-bit_, lalu pasang ISO sebagai CD-ROM).
 
 ---
-
-
 
 ## Instalasi & Menjalankan di Windows
 
@@ -200,13 +195,13 @@ Untuk keluar dari QEMU pada mode ini, tekan `Ctrl+A` lalu `X`.
 
 ## Perintah Make
 
-| Perintah | Keterangan |
-|----------|------------|
-| `make` | Build kernel menjadi `mini-os.bin` |
-| `make run` | Build lalu jalankan `mini-os.bin` di QEMU |
-| `make mini-os.iso` | Membuat ISO bootable dengan GRUB |
-| `make run-iso` | Membuat ISO lalu jalankan di QEMU |
-| `make clean` | Hapus semua hasil build (`.o`, `.bin`, `.iso`) |
+| Perintah           | Keterangan                                     |
+| ------------------ | ---------------------------------------------- |
+| `make`             | Build kernel menjadi `mini-os.bin`             |
+| `make run`         | Build lalu jalankan `mini-os.bin` di QEMU      |
+| `make mini-os.iso` | Membuat ISO bootable dengan GRUB               |
+| `make run-iso`     | Membuat ISO lalu jalankan di QEMU              |
+| `make clean`       | Hapus semua hasil build (`.o`, `.bin`, `.iso`) |
 
 Flag QEMU bisa diubah lewat variabel `QEMU_FLAGS`, contoh:
 
@@ -221,17 +216,17 @@ make run QEMU_FLAGS="-serial stdio -m 128M"
 
 Setelah booting, ketik perintah berikut pada prompt `Pulse-OS>`:
 
-| Perintah | Fungsi |
-|----------|--------|
-| `help` | Menampilkan daftar perintah |
-| `version` | Menampilkan versi Pulse-OS |
-| `meminfo` | Status alokasi memori dinamis |
-| `ls` | Menampilkan file di VFS RAMDisk |
-| `tasks` | Status thread dan scheduler |
-| `clear` | Membersihkan layar |
-| `logs` / `history` | Riwayat perintah yang sudah dijalankan |
-| `restart` | Merestart Pulse-OS |
-| `shutdown` / `poweroff` | Mematikan sistem |
+| Perintah                | Fungsi                                 |
+| ----------------------- | -------------------------------------- |
+| `help`                  | Menampilkan daftar perintah            |
+| `version`               | Menampilkan versi Pulse-OS             |
+| `meminfo`               | Status alokasi memori dinamis          |
+| `ls`                    | Menampilkan file di VFS RAMDisk        |
+| `tasks`                 | Status thread dan scheduler            |
+| `clear`                 | Membersihkan layar                     |
+| `logs` / `history`      | Riwayat perintah yang sudah dijalankan |
+| `restart`               | Merestart Pulse-OS                     |
+| `shutdown` / `poweroff` | Mematikan sistem                       |
 
 ---
 
