@@ -3,6 +3,7 @@
 #include "../include/memory.h"
 #include "../include/sync.h"
 #include "../include/task.h"
+#include "../include/protect.h"
 #include "../include/vfs.h"
 
 #define BASE_KERNEL "Based on : x86 Bare-Metal Kernel"
@@ -101,6 +102,8 @@ void cli_process_command(const char *cmd) {
     vga_print("  help      - Tampilkan bantuan\n");
     vga_print("  version   - Versi Pulse-OS\n");
     vga_print("  meminfo   - Info penggunaan memori\n");
+    vga_print("  memtest   - Uji alokasi, pelepasan, dan OOM\n");
+    vga_print("  protecttest - Uji kontrol hak akses\n");
     vga_print("\nVFS Commands:\n");
     vga_print("  ls        - Daftar file VFS\n");
     vga_print("  create    - Buat file (create <name>)\n");
@@ -118,8 +121,18 @@ void cli_process_command(const char *cmd) {
              cmd[4] == 'i' && cmd[5] == 'o' && cmd[6] == 'n') {
     vga_print("\nPulse-OS " OS_VERSION " (" BASE_KERNEL ")\n");
   } else if (cmd[0] == 'm' && cmd[1] == 'e' && cmd[2] == 'm' && cmd[3] == 'i' &&
-             cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'o') {
+           cmd[4] == 'n' && cmd[5] == 'f' && cmd[6] == 'o' && cmd[7] == '\0') {
+  if (protect_authorize(ROLE_USER)) print_memory_stats();
+  } else if (cmd[0] == 'm' && cmd[1] == 'e' && cmd[2] == 'm' && cmd[3] == 't' &&
+           cmd[4] == 'e' && cmd[5] == 's' && cmd[6] == 't' && cmd[7] == '\0') {
+  if (protect_authorize(ROLE_ADMIN)) {
+    memory_self_test();
     print_memory_stats();
+  }
+  } else if (cmd[0] == 'p' && cmd[1] == 'r' && cmd[2] == 'o' && cmd[3] == 't' &&
+             cmd[4] == 'e' && cmd[5] == 'c' && cmd[6] == 't' && cmd[7] == 't' &&
+             cmd[8] == 'e' && cmd[9] == 's' && cmd[10] == 't' && cmd[11] == '\0') {
+    protect_self_test();
   } else if (cmd[0] == 'l' && cmd[1] == 's') {
     vfs_list();
   } else if (cmd[0] == 'c' && cmd[1] == 'r' && cmd[2] == 'e' && cmd[3] == 'a' &&
@@ -134,6 +147,7 @@ void cli_process_command(const char *cmd) {
     }
   } else if (cmd[0] == 'r' && cmd[1] == 'm' && cmd[2] == ' ') {
     const char *name = &cmd[3];
+    if (!protect_authorize(ROLE_ADMIN)) return;
     if (vfs_delete(name) == 0) {
       vga_print("File removed\n");
       serial_print("File removed\n");
