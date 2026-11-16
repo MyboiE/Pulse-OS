@@ -6,7 +6,6 @@
 static int shift_state = 0;
 static int caps_state = 0;
 
-// test
 // Mapping Scancode Set 1 (US QWERTY) tanpa Shift
 static const char scancode_ascii[128] = {
     [0x01] = 27,   [0x02] = '1',  [0x03] = '2',  [0x04] = '3',  [0x05] = '4',
