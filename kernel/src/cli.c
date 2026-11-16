@@ -8,12 +8,26 @@
 
 #define BASE_KERNEL "Based on : x86 Bare-Metal Kernel"
 
+static int cli_command_valid(const char *cmd) {
+  static const char *commands[] = {"help", "version", "meminfo", "memtest",
+      "protecttest", "ls", "create", "rm", "cat", "write", "task2thread",
+      "clear", "logs", "history", "scroll", "restart", "shutdown", "poweroff"};
+  size_t len = 0;
+  while (cmd[len] && cmd[len] != ' ') len++;
+  for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
+    size_t j = 0;
+    while (commands[i][j] && j < len && commands[i][j] == cmd[j]) j++;
+    if (j == len && commands[i][j] == '\0') return 1;
+  }
+  return 0;
+}
+
 void cli_print_logo(void) {
   vga_set_color(12, 0); // Warna Merah Terang (VGA color code 12)
   vga_print("============================================================= \n");
   vga_print("       _       ____        __                ____  _____    \n");
   vga_print("     _| |_    / __ /__  __/ /_______        / __ // ___/    \n");
-  vga_print("    |_   _|  / /_/ / / / / / ___/ _ /______/ / / //__ \     \n");
+  vga_print("    |_   _|  / /_/ / / / / / ___/ _ /______/ / / //__ \\     \n");
   vga_print("      |_|   / ____/ /_/ / (__  )  __/_____/ /_/ /___/ /     \n");
   vga_print("           /_/    /__,_/_/____//___/      /____//____/      \n");
   vga_print("                                                            \n");
@@ -92,10 +106,23 @@ static void cli_show_logs(void) {
 void cli_init(void) {}
 
 void cli_process_command(const char *cmd) {
+  char writable_cmd[CLI_CMD_MAX];
+  size_t cmd_len = 0;
+  while (cmd[cmd_len] && cmd_len < CLI_CMD_MAX - 1) {
+    writable_cmd[cmd_len] = cmd[cmd_len];
+    cmd_len++;
+  }
+  writable_cmd[cmd_len] = '\0';
+  cmd = writable_cmd;
   if (cmd[0] == '\0')
     return;
 
   cli_log_add(cmd);
+
+  if (!cli_command_valid(cmd)) {
+    vga_print("\nPerintah tidak dikenal. Ketik 'help'.\n");
+    return;
+  }
 
   if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
     vga_print("\nDaftar Perintah CLI:\n");
@@ -114,6 +141,7 @@ void cli_process_command(const char *cmd) {
     vga_print("  task2thread - Demo 2 kernel thread (transisi 5 status)\n");
     vga_print("\nSystem:\n");
     vga_print("  clear       - Bersihkan layar\n");
+    vga_print("  scroll      - Info & panduan fitur scroll layar VGA\n");
     vga_print("  logs        - Riwayat perintah\n");
     vga_print("  restart     - Restart Pulse-OS\n");
     vga_print("  shutdown    - Matikan sistem\n");
@@ -157,8 +185,8 @@ void cli_process_command(const char *cmd) {
     }
   } else if (cmd[0] == 'c' && cmd[1] == 'a' && cmd[2] == 't' && cmd[3] == ' ') {
     const char *name = &cmd[4];
-    char buf[256];
-    if (vfs_read(name, buf) == 0) {
+    char buf[MAX_FILE_SIZE];
+    if (vfs_read(name, buf, sizeof(buf)) == 0) {
       vga_print(buf);
       vga_print("\n");
       serial_print(buf);
@@ -201,7 +229,18 @@ void cli_process_command(const char *cmd) {
       char confirm[8];
       int ci = 0;
       while (1) {
-        char cc = input_getchar();
+        int cc = input_getchar();
+        if (cc == KEY_PAGE_UP) {
+          vga_scroll_up(5);
+          continue;
+        } else if (cc == KEY_PAGE_DOWN) {
+          vga_scroll_down(5);
+          continue;
+        }
+        if (vga_get_scroll_offset() > 0 &&
+            (cc == '\r' || cc == '\n' || cc == '\b' || (cc >= 32 && cc <= 126))) {
+          vga_scroll_reset();
+        }
         if (cc == '\r' || cc == '\n') {
           confirm[ci] = '\0';
           vga_putchar('\n');
@@ -212,9 +251,9 @@ void cli_process_command(const char *cmd) {
           vga_putchar('\b');
           serial_print("\b \b");
         } else if (ci < 6 && cc >= 32 && cc <= 126) {
-          confirm[ci++] = cc;
-          vga_putchar(cc);
-          serial_putchar(cc);
+          confirm[ci++] = (char)cc;
+          vga_putchar((char)cc);
+          serial_putchar((char)cc);
         }
       }
       if (confirm[0] == 'q' || confirm[0] == 'Q') {
@@ -226,8 +265,16 @@ void cli_process_command(const char *cmd) {
         vga_print("Tekan ENTER untuk kembali ke shell...");
         serial_print("Tekan ENTER untuk kembali ke shell...");
         while (1) {
-          char wc = input_getchar();
+          int wc = input_getchar();
+          if (wc == KEY_PAGE_UP) {
+            vga_scroll_up(5);
+            continue;
+          } else if (wc == KEY_PAGE_DOWN) {
+            vga_scroll_down(5);
+            continue;
+          }
           if (wc == '\r' || wc == '\n') {
+            vga_scroll_reset();
             vga_putchar('\n');
             serial_putchar('\n');
             break;
@@ -245,6 +292,10 @@ void cli_process_command(const char *cmd) {
               cmd[3] == 't' && cmd[4] == 'o' && cmd[5] == 'r' &&
               cmd[6] == 'y')) {
     cli_show_logs();
+  } else if (cmd[0] == 's' && cmd[1] == 'c' && cmd[2] == 'r' && cmd[3] == 'o' &&
+             cmd[4] == 'l' && cmd[5] == 'l') {
+    vga_print("\nNavigasi Layar: Tekan Page Up / Page Down untuk scroll riwayat.\n");
+    serial_print("\nNavigasi Layar: Tekan Page Up / Page Down untuk scroll riwayat.\n");
   } else if ((cmd[0] == 'r' || cmd[0] == 'R') &&
              (cmd[1] == 'e' || cmd[1] == 'E') &&
              (cmd[2] == 's' || cmd[2] == 'S') &&
@@ -276,7 +327,21 @@ void cli_run(void) {
     idx = 0;
 
     while (1) {
-      char c = input_getchar(); // Menerima input dari Keyboard PS/2 atau Serial
+      int c = input_getchar(); // Menerima input dari Keyboard PS/2 atau Serial
+
+      if (c == KEY_PAGE_UP) {
+        vga_scroll_up(5);
+        continue;
+      } else if (c == KEY_PAGE_DOWN) {
+        vga_scroll_down(5);
+        continue;
+      }
+
+      if (vga_get_scroll_offset() > 0 &&
+          (c == '\r' || c == '\n' || c == '\b' || (c >= 32 && c <= 126))) {
+        vga_scroll_reset();
+      }
+
       if (c == '\r' || c == '\n') {
         buffer[idx] = '\0';
         vga_putchar('\n');
@@ -287,9 +352,9 @@ void cli_run(void) {
         vga_putchar('\b');
         serial_print("\b \b");
       } else if (idx < 63 && c >= 32 && c <= 126) {
-        buffer[idx++] = c;
-        vga_putchar(c);
-        serial_putchar(c);
+        buffer[idx++] = (char)c;
+        vga_putchar((char)c);
+        serial_putchar((char)c);
       }
     }
 

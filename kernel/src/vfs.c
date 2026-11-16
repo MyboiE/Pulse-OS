@@ -78,9 +78,9 @@ int vfs_write(const char *name, const char *data) {
   return 0;
 }
 
-int vfs_read(const char *name, char *buffer) {
+int vfs_read(const char *name, char *buffer, size_t buffer_size) {
   int idx = find_file(name);
-  if (idx == -1)
+  if (idx == -1 || !buffer || buffer_size <= files[idx].size)
     return -1;
   my_strncpy(buffer, files[idx].data, files[idx].size);
   buffer[files[idx].size] = '\0';
