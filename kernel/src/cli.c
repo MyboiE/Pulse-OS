@@ -126,19 +126,19 @@ void cli_process_command(const char *cmd) {
 
   if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
     vga_print("\nDaftar Perintah CLI:\n");
-    vga_print("  help      - Tampilkan bantuan\n");
-    vga_print("  version   - Versi Pulse-OS\n");
-    vga_print("  meminfo   - Info penggunaan memori\n");
-    vga_print("  memtest   - Uji alokasi, pelepasan, dan OOM\n");
-    vga_print("  protecttest - Uji kontrol hak akses\n");
+    vga_print("  help        - Tampilkan bantuan\n");
+    vga_print("  version     - Versi Pulse-OS\n");
+    vga_print("  meminfo     - Info penggunaan memori\n");
     vga_print("\nVFS Commands:\n");
     vga_print("  ls        - Daftar file VFS\n");
     vga_print("  create    - Buat file (create <name>)\n");
     vga_print("  cat       - Baca file (cat <name>)\n");
     vga_print("  write     - Tulis file (write <name> <data>)\n");
     vga_print("  rm        - Hapus file (rm <name>)\n");
-    vga_print("\nProcess & Thread:\n");
+    vga_print("\nProcess & Demo:\n");
     vga_print("  task2thread - Demo 2 kernel thread (transisi 5 status)\n");
+    vga_print("  memtest     - Uji alokasi, pelepasan, dan OOM\n");
+    vga_print("  protecttest - Uji kontrol hak akses\n");  
     vga_print("\nSystem:\n");
     vga_print("  clear       - Bersihkan layar\n");
     vga_print("  scroll      - Info & panduan fitur scroll layar VGA\n");
