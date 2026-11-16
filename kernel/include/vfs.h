@@ -15,7 +15,7 @@ typedef struct {
 
 void vfs_init(void);
 int vfs_create(const char* name);
-int vfs_read(const char* name, char* buffer);
+int vfs_read(const char* name, char* buffer, size_t buffer_size);
 int vfs_write(const char* name, const char* data);
 int vfs_delete(const char* name);
 void vfs_list(void);

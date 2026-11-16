@@ -5,6 +5,7 @@
 
 static int shift_state = 0;
 static int caps_state = 0;
+static int extended_prefix = 0;
 
 // Mapping Scancode Set 1 (US QWERTY) tanpa Shift
 static const char scancode_ascii[128] = {
@@ -33,7 +34,7 @@ static const char scancode_ascii_shift[128] = {
     [0x1E] = 'A',  [0x1F] = 'S',  [0x20] = 'D',  [0x21] = 'F',  [0x22] = 'G',
     [0x23] = 'H',  [0x24] = 'J',  [0x25] = 'K',  [0x26] = 'L',  [0x27] = ':',
     [0x28] = '"',  [0x29] = '~',
-    [0x2B] = '|',  [0x2C] = 'Z',  [0x2D] = 'X',  [0x2E] = 'C',  [0x2F] = 'V',
+    [0x2B] = '|',  [0x2C] = 'Z',  [0x2D] = 'X',  [0x2E] = 'c',  [0x2F] = 'V',
     [0x30] = 'B',  [0x31] = 'N',  [0x32] = 'M',  [0x33] = '<',  [0x34] = '>',
     [0x35] = '?',  [0x39] = ' ',
 };
@@ -42,6 +43,7 @@ static const char scancode_ascii_shift[128] = {
 void keyboard_init(void) {
     shift_state = 0;
     caps_state = 0;
+    extended_prefix = 0;
     // Bersihkan buffer keyboard jika ada sisa data saat boot
     while (inb(KBD_STATUS_PORT) & 1) {
         inb(KBD_DATA_PORT);
@@ -49,15 +51,24 @@ void keyboard_init(void) {
 }
 
 // Cek non-blocking apakah ada karakter yang ditekan
-char keyboard_poll(void) {
+int keyboard_poll(void) {
     if ((inb(KBD_STATUS_PORT) & 1) == 0) {
         return 0;
     }
 
     unsigned char scancode = inb(KBD_DATA_PORT);
 
-    // Abaikan prefix tombol extended (0xE0)
+    // Deteksi prefix tombol extended (0xE0)
     if (scancode == 0xE0) {
+        extended_prefix = 1;
+        return 0;
+    }
+
+    if (extended_prefix) {
+        extended_prefix = 0;
+        if (scancode & 0x80) return 0;
+        if (scancode == 0x49) return KEY_PAGE_UP;
+        if (scancode == 0x51) return KEY_PAGE_DOWN;
         return 0;
     }
 
@@ -83,6 +94,10 @@ char keyboard_poll(void) {
         return 0;
     }
 
+    // Keypad Page Up / Page Down
+    if (scancode == 0x49) return KEY_PAGE_UP;
+    if (scancode == 0x51) return KEY_PAGE_DOWN;
+
     if (scancode >= 128) {
         return 0;
     }
@@ -99,18 +114,28 @@ char keyboard_poll(void) {
 }
 
 // Membaca karakter dari keyboard secara blocking
-char keyboard_getchar(void) {
-    char c = 0;
+int keyboard_getchar(void) {
+    int c = 0;
     while ((c = keyboard_poll()) == 0);
     return c;
+}
+
+// Helper serial read dengan batas polling untuk escape sequence
+static int serial_read_timeout(int max_polls) {
+    for (int i = 0; i < max_polls; i++) {
+        if (serial_has_char()) {
+            return (unsigned char)serial_getchar();
+        }
+    }
+    return -1;
 }
 
 // Input terpadu: membaca dari keyboard PS/2 (jendela QEMU) ATAU serial (terminal)
 static int serial_last_cr = 0;
 
-char input_getchar(void) {
+int input_getchar(void) {
     while (1) {
-        char c = keyboard_poll();
+        int c = keyboard_poll();
         if (c != 0) {
             serial_last_cr = 0;
             return c;
@@ -126,7 +151,25 @@ char input_getchar(void) {
                 return '\n';
             }
             serial_last_cr = 0;
-            return sc;
+
+            // Handle ANSI escape sequences dari terminal serial (Page Up & Page Down)
+            if ((unsigned char)sc == 27) {
+                int c2 = serial_read_timeout(10000);
+                if (c2 == '[') {
+                    int c3 = serial_read_timeout(10000);
+                    if (c3 == '5') {
+                        (void)serial_read_timeout(10000); // baca '~'
+                        return KEY_PAGE_UP;
+                    }
+                    if (c3 == '6') {
+                        (void)serial_read_timeout(10000); // baca '~'
+                        return KEY_PAGE_DOWN;
+                    }
+                }
+                return 27; // ESC murni
+            }
+
+            return (unsigned char)sc;
         }
     }
 }
