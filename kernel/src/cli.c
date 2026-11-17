@@ -10,7 +10,7 @@
 
 static int cli_command_valid(const char *cmd) {
   static const char *commands[] = {"help", "version", "meminfo", "memtest",
-      "protecttest", "ls", "create", "rm", "cat", "write", "task2thread",
+      "protecttest", "role", "ls", "create", "rm", "cat", "write", "task2thread",
       "clear", "logs", "history", "scroll", "restart", "shutdown", "poweroff"};
   size_t len = 0;
   while (cmd[len] && cmd[len] != ' ') len++;
@@ -124,7 +124,27 @@ void cli_process_command(const char *cmd) {
     return;
   }
 
-  if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
+  if (cmd[0] == 'r' && cmd[1] == 'o' && cmd[2] == 'l' && cmd[3] == 'e') {
+    if (cmd[4] == '\0') {
+      vga_print("Role aktif: "); vga_print(protect_role_name()); vga_print("\n");
+      serial_print("Role aktif: "); serial_print(protect_role_name()); serial_print("\n");
+    } else if (cmd[4] == ' ' && cmd[5] == 'v' && cmd[6] == 'i' && cmd[7] == 's' && cmd[8] == 'i' && cmd[9] == 't' && cmd[10] == 'o' && cmd[11] == 'r' && cmd[12] == '\0') {
+      protect_set_role(ROLE_VISITOR_ADMIN);
+      vga_print("Role diubah: Visitor Administration\n");
+      serial_print("Role diubah: Visitor Administration\n");
+    } else if (cmd[4] == ' ' && cmd[5] == 'e' && cmd[6] == 'm' && cmd[7] == 'e' && cmd[8] == 'r' && cmd[9] == 'g' && cmd[10] == 'e' && cmd[11] == 'n' && cmd[12] == 'c' && cmd[13] == 'y' && cmd[14] == '\0') {
+      if (protect_current_role() != ROLE_EMERGENCY_RECEPTION) {
+        vga_print("[DENIED] Hanya Emergency Reception dapat menetapkan role itu.\n");
+        serial_print("[DENIED] Only Emergency Reception may set that role.\n");
+      } else {
+        vga_print("Role aktif: Emergency Reception\n");
+        serial_print("Role active: Emergency Reception\n");
+      }
+    } else {
+      vga_print("Usage: role [visitor|emergency]\n");
+      serial_print("Usage: role [visitor|emergency]\n");
+    }
+  } else if (cmd[0] == 'h' && cmd[1] == 'e' && cmd[2] == 'l' && cmd[3] == 'p') {
     vga_print("\nDaftar Perintah CLI:\n");
     vga_print("  help        - Tampilkan bantuan\n");
     vga_print("  version     - Versi Pulse-OS\n");
@@ -138,7 +158,8 @@ void cli_process_command(const char *cmd) {
     vga_print("\nProcess & Demo:\n");
     vga_print("  task2thread - Demo 2 kernel thread (transisi 5 status)\n");
     vga_print("  memtest     - Uji alokasi, pelepasan, dan OOM\n");
-    vga_print("  protecttest - Uji kontrol hak akses\n");  
+    vga_print("  protecttest - Uji kontrol hak akses\n");
+    vga_print("  role [visitor|emergency] - Tampilkan/ubah role aktif\n");
     vga_print("\nSystem:\n");
     vga_print("  clear       - Bersihkan layar\n");
     vga_print("  scroll      - Info & panduan fitur scroll layar VGA\n");
@@ -153,7 +174,7 @@ void cli_process_command(const char *cmd) {
   if (protect_authorize(ROLE_USER)) print_memory_stats();
   } else if (cmd[0] == 'm' && cmd[1] == 'e' && cmd[2] == 'm' && cmd[3] == 't' &&
            cmd[4] == 'e' && cmd[5] == 's' && cmd[6] == 't' && cmd[7] == '\0') {
-  if (protect_authorize(ROLE_ADMIN)) {
+  if (protect_resource_allowed(RESOURCE_EMERGENCY)) {
     memory_self_test();
     print_memory_stats();
   }
@@ -175,7 +196,6 @@ void cli_process_command(const char *cmd) {
     }
   } else if (cmd[0] == 'r' && cmd[1] == 'm' && cmd[2] == ' ') {
     const char *name = &cmd[3];
-    if (!protect_authorize(ROLE_ADMIN)) return;
     if (vfs_delete(name) == 0) {
       vga_print("File removed\n");
       serial_print("File removed\n");
@@ -219,7 +239,11 @@ void cli_process_command(const char *cmd) {
     }
   } else if (cmd[0] == 't' && cmd[1] == 'a' && cmd[2] == 's' && cmd[3] == 'k' &&
              cmd[4] == '2' && cmd[5] == 't' && cmd[6] == 'h' && cmd[7] == 'r' &&
-             cmd[8] == 'e' && cmd[9] == 'a' && cmd[10] == 'd') {
+             cmd[8] == 'e' && cmd[9] == 'a' && cmd[10] == 'd' && cmd[11] == '\0') {
+    if (!protect_resource_allowed(RESOURCE_EMERGENCY)) {
+      protect_authorize(ROLE_EMERGENCY_RECEPTION);
+      return;
+    }
     /* Konfirmasi sebelum mulai demo */
     vga_print("\nDemo 2 Kernel Thread (transisi 5 status)\n");
     vga_print("Tekan ENTER untuk mulai, ketik 'q' lalu ENTER untuk batal: ");
@@ -230,56 +254,17 @@ void cli_process_command(const char *cmd) {
       int ci = 0;
       while (1) {
         int cc = input_getchar();
-        if (cc == KEY_PAGE_UP) {
-          vga_scroll_up(5);
-          continue;
-        } else if (cc == KEY_PAGE_DOWN) {
-          vga_scroll_down(5);
-          continue;
-        }
-        if (vga_get_scroll_offset() > 0 &&
-            (cc == '\r' || cc == '\n' || cc == '\b' || (cc >= 32 && cc <= 126))) {
-          vga_scroll_reset();
-        }
-        if (cc == '\r' || cc == '\n') {
-          confirm[ci] = '\0';
-          vga_putchar('\n');
-          serial_putchar('\n');
-          break;
-        } else if (cc == '\b' && ci > 0) {
-          ci--;
-          vga_putchar('\b');
-          serial_print("\b \b");
-        } else if (ci < 6 && cc >= 32 && cc <= 126) {
-          confirm[ci++] = (char)cc;
-          vga_putchar((char)cc);
-          serial_putchar((char)cc);
-        }
+        if (cc == KEY_PAGE_UP) { vga_scroll_up(5); continue; }
+        if (cc == KEY_PAGE_DOWN) { vga_scroll_down(5); continue; }
+        if (cc == '\r' || cc == '\n') { confirm[ci] = '\0'; vga_putchar('\n'); serial_putchar('\n'); break; }
+        if (cc == '\b' && ci > 0) { ci--; vga_putchar('\b'); serial_print("\b \b"); continue; }
+        if (ci < 6 && cc >= 32 && cc <= 126) { confirm[ci++] = (char)cc; vga_putchar((char)cc); serial_putchar((char)cc); }
       }
       if (confirm[0] == 'q' || confirm[0] == 'Q') {
-        vga_print("Demo dibatalkan.\n");
-        serial_print("Demo dibatalkan.\n");
+        vga_print("Demo dibatalkan.\n"); serial_print("Demo dibatalkan.\n");
       } else {
         task_demo_run();
-        /* Tunggu user menekan ENTER untuk kembali ke shell */
-        vga_print("Tekan ENTER untuk kembali ke shell...");
-        serial_print("Tekan ENTER untuk kembali ke shell...");
-        while (1) {
-          int wc = input_getchar();
-          if (wc == KEY_PAGE_UP) {
-            vga_scroll_up(5);
-            continue;
-          } else if (wc == KEY_PAGE_DOWN) {
-            vga_scroll_down(5);
-            continue;
-          }
-          if (wc == '\r' || wc == '\n') {
-            vga_scroll_reset();
-            vga_putchar('\n');
-            serial_putchar('\n');
-            break;
-          }
-        }
+        vga_print("Demo selesai.\n"); serial_print("Demo selesai.\n");
       }
     }
   } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' &&

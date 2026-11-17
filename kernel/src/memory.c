@@ -121,17 +121,20 @@ static void print_kb(size_t bytes) {
     char digits[12];
     unsigned int n = 0;
     size_t kb = bytes / 1024u;
-    if (!kb) { vga_print("0"); return; }
+    if (!kb) { vga_print("0"); serial_print("0"); return; }
     while (kb) { digits[n++] = (char)('0' + kb % 10u); kb /= 10u; }
-    while (n) vga_putchar(digits[--n]);
+    while (n) { char c = digits[--n]; vga_putchar(c); serial_putchar(c); }
 }
 
 void print_memory_stats(void) {
     size_t used, available;
     memory_get_stats(&used, &available);
     vga_print("\n--- STATUS MEMORI DINAMIS ---\nTotal heap : 1024 KB\nTerpakai   : ");
+    serial_print("\n--- STATUS MEMORI DINAMIS ---\nTotal heap : 1024 KB\nTerpakai   : ");
     print_kb(used);
     vga_print(" KB\nTersedia   : ");
+    serial_print(" KB\nTersedia   : ");
     print_kb(available);
     vga_print(" KB\n");
+    serial_print(" KB\n");
 }

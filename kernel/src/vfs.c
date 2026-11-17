@@ -1,5 +1,6 @@
 #include "../include/vfs.h"
 #include "../include/kernel.h"
+#include "../include/protect.h"
 // removed std lib include
 
 static size_t my_strlen(const char *s) {
@@ -35,8 +36,22 @@ void vfs_init(void) {
     files[i].size = 0;
   }
   // create default file
-  vfs_create("readme.txt");
-  vfs_write("readme.txt", "Selamat datang di VFS Pulse-OS RAMDisk!");
+  vfs_create("visitor-readme.txt");
+  vfs_write("visitor-readme.txt", "Selamat datang di VFS Pulse-OS RAMDisk!");
+}
+
+static int name_is_visitor_file(const char *name) {
+  static const char prefix[] = "visitor-";
+  for (size_t i = 0; i < sizeof(prefix) - 1; i++) {
+    if (name[i] != prefix[i]) return 0;
+  }
+  return 1;
+}
+
+static int vfs_name_allowed(const char *name) {
+  return name_is_visitor_file(name)
+      ? protect_resource_allowed(RESOURCE_VISITOR_ADMIN)
+      : protect_resource_allowed(RESOURCE_EMERGENCY);
 }
 
 static int find_file(const char *name) {
@@ -49,6 +64,8 @@ static int find_file(const char *name) {
 }
 
 int vfs_create(const char *name) {
+  if (!name || !name[0] || !vfs_name_allowed(name))
+    return -1;
   if (my_strlen(name) >= MAX_FILENAME)
     return -1; // name too long
   if (find_file(name) != -1)
@@ -66,6 +83,7 @@ int vfs_create(const char *name) {
 }
 
 int vfs_write(const char *name, const char *data) {
+  if (!name || !data || !vfs_name_allowed(name)) return -1;
   int idx = find_file(name);
   if (idx == -1)
     return -1; // not found
@@ -79,6 +97,7 @@ int vfs_write(const char *name, const char *data) {
 }
 
 int vfs_read(const char *name, char *buffer, size_t buffer_size) {
+  if (!name || !buffer || !vfs_name_allowed(name)) return -1;
   int idx = find_file(name);
   if (idx == -1 || !buffer || buffer_size <= files[idx].size)
     return -1;
@@ -88,6 +107,7 @@ int vfs_read(const char *name, char *buffer, size_t buffer_size) {
 }
 
 int vfs_delete(const char *name) {
+  if (!name || !vfs_name_allowed(name)) return -1;
   int idx = find_file(name);
   if (idx == -1)
     return -1;
@@ -101,10 +121,13 @@ void vfs_list(void) {
   vga_print("\n--- DAFTAR FILE VFS (RAMDisk) ---\n");
   int count = 0;
   for (int i = 0; i < MAX_FILES; i++) {
-    if (files[i].used) {
+    if (files[i].used && vfs_name_allowed(files[i].name)) {
       vga_print("- ");
       vga_print(files[i].name);
       vga_print("\n");
+      serial_print("- ");
+      serial_print(files[i].name);
+      serial_print("\n");
       count++;
     }
   }
