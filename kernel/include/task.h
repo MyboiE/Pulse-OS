@@ -1,22 +1,14 @@
 #ifndef TASK_H
 #define TASK_H
 
-/* ============================================================================
-   task.h - Pengelolaan Proses & Thread Kernel Pulse-OS
-   ============================================================================
-
-   Struktur Data:
-   - thread_state_t : Enum status thread (NEW, READY, RUNNING, WAITING, TERMINATED)
-   - thread_t       : Thread Control Block (TCB)
-
-   Mekanisme:
-   - Cooperative scheduling via context switch (stack switching)
-   - Round Robin scheduler
-   - Transisi status: NEW -> READY -> RUNNING <-> WAITING -> TERMINATED
-   ============================================================================ */
-
-#define MAX_THREADS     8
+#define MAX_THREADS       8
 #define THREAD_STACK_SIZE 4096  /* 4 KB stack per thread */
+
+/* Kelas Triase / Prioritas Utama (angka lebih kecil = prioritas lebih tinggi) */
+#define PRIO_KRITIS       0
+#define PRIO_SERIUS       1
+#define PRIO_STABIL       2
+#define PRIO_DEFAULT      1
 
 /* Status thread sesuai teori Sistem Operasi */
 typedef enum {
@@ -34,51 +26,37 @@ typedef struct thread {
     thread_state_t   state;                        /* Status thread saat ini         */
     void           (*entry)(void);                 /* Fungsi entry point thread      */
     unsigned int     esp;                          /* Saved stack pointer (ESP)      */
-    unsigned char    stack[THREAD_STACK_SIZE];      /* Stack privat thread            */
+    unsigned char    stack[THREAD_STACK_SIZE];     /* Stack privat thread            */
     int              wait_ticks;                   /* Sisa tick menunggu (WAITING)   */
     int              has_run;                      /* Apakah sudah pernah dieksekusi */
+
+    /* Atribut Preemptive Priority Queue Scheduler */
+    int              triage_class;                 /* 0: Kritis, 1: Serius, 2: Stabil */
+    int              remaining_work;               /* Estimasi sisa unit kerja        */
+    int              resource_load;                /* Beban resource terukur          */
+    int              hybrid_score;                 /* Skor hybrid intra-kelas (0-100) */
+    unsigned int     enqueue_order;                /* Urutan masuk READY (tie-break)  */
 } thread_t;
 
 /* ---- Fungsi Pengelolaan Thread ---- */
-
-/* Inisialisasi subsistem task */
 void task_sys_init(void);
-
-/* Membuat thread baru dengan nama dan fungsi entry point.
-   Transisi status: -> NEW -> READY */
 thread_t* thread_create(const char* name, void (*entry)(void));
-
-/* Thread secara kooperatif menyerahkan CPU ke thread lain.
-   Transisi status: RUNNING -> READY, lalu READY -> RUNNING (thread berikutnya) */
+thread_t* thread_create_prio(const char* name, void (*entry)(void),
+                             int triage_class, int remaining_work, int resource_load);
 void thread_yield(void);
-
-/* Thread memasuki status WAITING selama sejumlah tick.
-   Transisi status: RUNNING -> WAITING */
 void thread_wait(int ticks);
-
-/* Menandai thread saat ini sebagai TERMINATED.
-   Transisi status: RUNNING -> TERMINATED */
 void thread_exit(void);
-
-/* Menjalankan scheduler Round Robin (dipanggil oleh yield/wait/exit) */
 void schedule(void);
-
-/* Cetak status semua thread yang terdaftar */
+void scheduler_tick(void);
+void thread_block(void);
+void thread_wake(int thread_id);
+void thread_update_work(int remaining_work);
 void print_thread_states(void);
 
 /* ---- Demo & Pengujian ---- */
-
-/* Menjalankan demo 2 kernel thread dengan tugas berbeda,
-   menunjukkan transisi semua 5 status */
 void task_demo_run(void);
-
-/* Mendapatkan jumlah thread aktif (non-TERMINATED) */
 int task_get_active_count(void);
-
-/* Mendapatkan pointer ke thread berdasarkan ID */
 thread_t* task_get_thread(int id);
-
-/* Mendapatkan ID thread yang sedang berjalan */
 int task_get_current_id(void);
 
 #endif
