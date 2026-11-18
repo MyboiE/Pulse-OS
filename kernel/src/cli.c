@@ -8,9 +8,19 @@
 
 #define BASE_KERNEL "Based on : x86 Bare-Metal Kernel"
 
+static int cli_streq(const char *a, const char *b) {
+  int i = 0;
+  while (a[i] && b[i]) {
+    if (a[i] != b[i]) return 0;
+    i++;
+  }
+  return a[i] == '\0' && b[i] == '\0';
+}
+
 static int cli_command_valid(const char *cmd) {
   static const char *commands[] = {"help", "version", "meminfo", "memtest",
       "protecttest", "role", "ls", "create", "rm", "cat", "write", "task2thread",
+      "synctest", "deadlocktest", "deadlocksafe",
       "clear", "logs", "history", "scroll", "restart", "shutdown", "poweroff"};
   size_t len = 0;
   while (cmd[len] && cmd[len] != ' ') len++;
@@ -267,6 +277,12 @@ void cli_process_command(const char *cmd) {
         vga_print("Demo selesai.\n"); serial_print("Demo selesai.\n");
       }
     }
+  } else if (cli_streq(cmd, "synctest")) {
+    test_race_condition();
+  } else if (cli_streq(cmd, "deadlocktest")) {
+    test_deadlock_scenario();
+  } else if (cli_streq(cmd, "deadlocksafe")) {
+    test_deadlock_resolved();
   } else if (cmd[0] == 'c' && cmd[1] == 'l' && cmd[2] == 'e' && cmd[3] == 'a' &&
              cmd[4] == 'r') {
     vga_clear();
