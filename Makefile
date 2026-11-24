@@ -10,7 +10,9 @@ LDFLAGS = -m elf_i386 -T boot/linker.ld
 
 # Daftar File Object (.o) dari seluruh source code di struktur folder
 OBJS = boot/boot.o \
+       boot/interrupt.o \
        drivers/vga.o \
+       kernel/src/interrupt.o \
        drivers/serial.o \
        drivers/keyboard.o \
        kernel/src/main.o \
@@ -32,7 +34,10 @@ all: mini-os.bin
 boot/boot.o: boot/boot.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
-# Rule Linking seluruh object menjadi 1 Binary Kernel
+boot/interrupt.o: boot/interrupt.asm
+	$(ASM) $(ASMFLAGS) $< -o $@
+
+# Rule untuk Linking seluruh object menjadi 1 Binary Kernel
 mini-os.bin: $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
 

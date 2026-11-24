@@ -19,5 +19,8 @@ int vfs_read(const char* name, char* buffer, size_t buffer_size);
 int vfs_write(const char* name, const char* data);
 int vfs_delete(const char* name);
 void vfs_list(void);
+void vfs_self_test(void);
+int  test_input_overflow(void);
+int  test_visitor_denial(void);
 
 #endif

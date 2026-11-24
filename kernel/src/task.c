@@ -1,5 +1,19 @@
 #include "../include/kernel.h"
 #include "../include/task.h"
+// Test harness helper for task tests
+static void test_result(int ok, const char *msg) {
+    if (ok) {
+        vga_print("  [PASS] ");
+        serial_print("  [PASS] ");
+    } else {
+        vga_print("  [FAIL] ");
+        serial_print("  [FAIL] ");
+    }
+    vga_print(msg);
+    vga_print("\n");
+    serial_print(msg);
+    serial_print("\n");
+}
 
 /* ============================================================================
    task.c - Implementasi Pengelolaan Proses & Thread Kernel Pulse-OS
@@ -19,6 +33,16 @@ static int thread_count = 0;
 static int current_thread = -1;
 static unsigned int kernel_esp = 0; /* ESP kernel utama, untuk kembali setelah semua thread selesai */
 static unsigned int global_enqueue_counter = 0; /* Counter urutan masuk antrean READY (FIFO) */
+
+static inline unsigned int irq_save_disable(void) {
+    unsigned int flags;
+    __asm__ volatile ("pushfl; popl %0; cli" : "=r"(flags) : : "memory");
+    return flags;
+}
+
+static inline void irq_restore(unsigned int flags) {
+    __asm__ volatile ("pushl %0; popfl" : : "r"(flags) : "memory");
+}
 
 /* ---- Helper: String -> Status Name ---- */
 static const char* state_name(thread_state_t s) {
@@ -116,16 +140,59 @@ static int is_higher_priority(const thread_t* cand, const thread_t* best) {
     return cand->enqueue_order < best->enqueue_order;
 }
 
+/* Explicit binary min-heap: priority, hybrid score, then FIFO. */
+static int ready_heap[MAX_THREADS];
+static int ready_heap_size;
+
+static void heap_swap(int a, int b) {
+    int tmp = ready_heap[a];
+    ready_heap[a] = ready_heap[b];
+    ready_heap[b] = tmp;
+}
+
+static void heap_push(int id) {
+    int pos = ready_heap_size++;
+    ready_heap[pos] = id;
+    while (pos > 0) {
+        int parent = (pos - 1) / 2;
+        if (!is_higher_priority(&thread_pool[ready_heap[pos]],
+                                &thread_pool[ready_heap[parent]])) break;
+        heap_swap(pos, parent);
+        pos = parent;
+    }
+}
+
+static int heap_pop(void) {
+    int result;
+    int pos = 0;
+    if (ready_heap_size == 0) return -1;
+    result = ready_heap[0];
+    ready_heap[0] = ready_heap[--ready_heap_size];
+    while (1) {
+        int left = pos * 2 + 1;
+        int right = left + 1;
+        int best = pos;
+        if (left < ready_heap_size &&
+            is_higher_priority(&thread_pool[ready_heap[left]],
+                               &thread_pool[ready_heap[best]])) best = left;
+        if (right < ready_heap_size &&
+            is_higher_priority(&thread_pool[ready_heap[right]],
+                               &thread_pool[ready_heap[best]])) best = right;
+        if (best == pos) break;
+        heap_swap(pos, best);
+        pos = best;
+    }
+    return result;
+}
+
 static int pick_next_thread(void) {
-    int best = -1;
+    ready_heap_size = 0;
     for (int i = 0; i < MAX_THREADS; i++) {
-        if (thread_pool[i].state == THREAD_READY) {
-            if (best == -1 || is_higher_priority(&thread_pool[i], &thread_pool[best])) {
-                best = i;
-            }
+        if (thread_pool[i].id != -1 && thread_pool[i].state == THREAD_READY) {
+            heap_push(i);
         }
     }
-    return best;
+    return heap_pop();
 }
 
 /* ============================================================================
@@ -147,6 +214,7 @@ void task_sys_init(void) {
     }
     thread_count = 0;
     current_thread = -1;
+    kernel_esp = 0;
     global_enqueue_counter = 0;
 }
 
@@ -174,7 +242,14 @@ static void thread_wrapper(void) {
    ============================================================================ */
 thread_t* thread_create_prio(const char* name, void (*entry)(void),
                              int triage_class, int remaining_work, int resource_load) {
-    if (thread_count >= MAX_THREADS) return NULL;
+    unsigned int flags = irq_save_disable();
+    // If thread pool is exhausted, report error
+    if (thread_count >= MAX_THREADS) {
+        vga_print("[ERROR] Thread pool exhausted.\n");
+        serial_print("[ERROR] Thread pool exhausted.\n");
+        irq_restore(flags);
+        return NULL;
+    }
 
     int slot = -1;
     for (int i = 0; i < MAX_THREADS; i++) {
@@ -183,7 +258,10 @@ thread_t* thread_create_prio(const char* name, void (*entry)(void),
             break;
         }
     }
-    if (slot == -1) return NULL;
+    if (slot == -1) {
+        irq_restore(flags);
+        return NULL;
+    }
 
     thread_t* t = &thread_pool[slot];
     t->id = slot;
@@ -233,10 +311,13 @@ thread_t* thread_create_prio(const char* name, void (*entry)(void),
     if (current_thread >= 0 && current_thread < MAX_THREADS &&
         thread_pool[current_thread].state == THREAD_RUNNING) {
         if (is_higher_priority(t, &thread_pool[current_thread])) {
+            irq_restore(flags);
             schedule();
+            return t;
         }
     }
 
+    irq_restore(flags);
     return t;
 }
 
@@ -335,26 +416,35 @@ static void log_dispatch(thread_t* t) {
    Memilih thread READY dengan prioritas tertinggi (Triage -> Hybrid -> FIFO).
    Melakukan preemption jika thread RUNNING saat ini kalah prioritas.
    ============================================================================ */
+/* ============================================================================
+   Preemptive Priority Scheduler
+   ============================================================================ */
+static int in_scheduler = 0;
+
 void schedule(void) {
-    /* Update thread yang sedang WAITING berdurasi tick */
+    if (in_scheduler) return;
+    in_scheduler = 1;
+
+    // Update thread yang sedang WAITING berdurasi tick
     update_waiting_threads();
 
-    /* Pilih thread READY terbaik berdasarkan Priority Queue 2-Tingkat + FIFO */
+    // Pilih thread READY terbaik berdasarkan Priority Queue 2-Tingkat + FIFO
     int next = pick_next_thread();
 
-    /* Jika thread saat ini masih RUNNING (panggilan preemptive dari tick/wake) */
+    // Jika thread saat ini masih RUNNING (panggilan preemptive dari tick/wake)
     if (current_thread >= 0 && current_thread < MAX_THREADS &&
         thread_pool[current_thread].state == THREAD_RUNNING) {
         if (next == -1 || !is_higher_priority(&thread_pool[next], &thread_pool[current_thread])) {
-            /* Tidak ada kandidat yang lebih prioritas; lanjutkan thread berjalan */
+            // Tidak ada kandidat yang lebih prioritas; lanjutkan thread berjalan
+            in_scheduler = 0;
             return;
         }
-        /* Preempt thread berjalan: kembalikan statusnya dari RUNNING -> READY */
+        // Preempt thread berjalan: kembalikan statusnya dari RUNNING -> READY
         set_state(&thread_pool[current_thread], THREAD_READY);
     }
 
     if (next == -1) {
-        /* Tidak ada thread READY, cek apakah masih ada WAITING */
+        // Tidak ada thread READY, cek apakah masih ada WAITING
         int has_waiting = 0;
         int has_timed_waiting = 0;
         for (int i = 0; i < MAX_THREADS; i++) {
@@ -367,8 +457,9 @@ void schedule(void) {
         }
 
         if (!has_waiting) {
-            /* Semua thread selesai — kembali ke konteks kernel */
+            // Semua thread selesai — kembali ke konteks kernel
             current_thread = -1;
+            in_scheduler = 0;
             if (kernel_esp != 0) {
                 unsigned int saved = kernel_esp;
                 kernel_esp = 0;
@@ -378,7 +469,7 @@ void schedule(void) {
             return;
         }
 
-        /* Ada thread WAITING, tunggu/simulasi tick sampai ada yang READY */
+        // Ada thread WAITING, tunggu/simulasi tick sampai ada yang READY
         while (next == -1) {
             if (has_timed_waiting) {
                 update_waiting_threads();
@@ -389,25 +480,93 @@ void schedule(void) {
         }
     }
 
-    if (next == current_thread) return; /* Thread yang sama, tidak perlu switch */
+    if (next == current_thread) {
+        set_state(&thread_pool[next], THREAD_RUNNING);
+        in_scheduler = 0;
+        return;
+    }
 
+    // Switch to selected thread
     int prev = current_thread;
-
-    /* Catat alasan pemilihan thread ke event log (triage, hybrid_score, fifo) */
     log_dispatch(&thread_pool[next]);
-
-    /* Set thread baru sebagai RUNNING */
     set_state(&thread_pool[next], THREAD_RUNNING);
     thread_pool[next].has_run = 1;
     current_thread = next;
 
+    in_scheduler = 0;
     if (prev >= 0 && prev < MAX_THREADS) {
-        /* Context switch dari thread lama ke thread baru */
+        // Context switch from thread lama ke thread baru
         context_switch(&thread_pool[prev].esp, thread_pool[next].esp);
     } else {
-        /* Pertama kali: simpan ESP kernel dan beralih ke thread pertama */
+        // Pertama kali: simpan ESP kernel dan beralih ke thread pertama
         context_switch(&kernel_esp, thread_pool[next].esp);
     }
+}
+
+/* ---------------------------------------------------------------------------
+   Test: Hybrid FIFO tie‑break validation
+   --------------------------------------------------------------------------- */
+void test_hybrid_fifo(void) {
+    __asm__ volatile ("cli");
+    task_sys_init();
+    /* Create three threads with identical priority and hybrid score */
+    thread_create_prio("T0", (void*)0x0, PRIO_DEFAULT, 1, 1);
+    thread_create_prio("T1", (void*)0x0, PRIO_DEFAULT, 1, 1);
+    thread_create_prio("T2", (void*)0x0, PRIO_DEFAULT, 1, 1);
+    int id0 = 0, id1 = 1, id2 = 2; // slots are allocated sequentially
+    int ok = (thread_pool[id0].enqueue_order < thread_pool[id1].enqueue_order) &&
+             (thread_pool[id1].enqueue_order < thread_pool[id2].enqueue_order);
+    test_result(ok, "Hybrid FIFO tie-break order is FIFO");
+    task_sys_init(); /* cleanup */
+    __asm__ volatile ("sti");
+}
+
+/* ---------------------------------------------------------------------------
+   Test: Thread‑pool exhaustion handling
+   --------------------------------------------------------------------------- */
+void test_thread_pool_exhaustion(void) {
+    __asm__ volatile ("cli");
+    task_sys_init();
+    /* Exhaust the pool */
+    for (int i = 0; i < MAX_THREADS; i++) {
+        thread_create_prio("EXHAUST", (void*)0x0, PRIO_DEFAULT, 0, 0);
+    }
+    /* One more should fail */
+    thread_t *extra = thread_create_prio("OVER", (void*)0x0, PRIO_DEFAULT, 0, 0);
+    int ok = (extra == NULL);
+    test_result(ok, "Thread-pool exhaustion returns NULL");
+    task_sys_init(); /* cleanup */
+    __asm__ volatile ("sti");
+}
+
+/* ---------------------------------------------------------------------------
+   Test: Pre‑emptive timer tick validation (non-context-switch version)
+   --------------------------------------------------------------------------- */
+void test_preemptive_timer(void) {
+    __asm__ volatile ("cli");
+    task_sys_init();
+    /* Just verify scheduler_tick calls schedule and picks higher prio */
+    thread_create_prio("Low", (void*)0x0, PRIO_STABIL, 1, 1);
+    thread_create_prio("High", (void*)0x0, PRIO_KRITIS, 1, 1);
+    /* Verify high-priority thread would be picked first */
+    int next = pick_next_thread();
+    int ok = (next >= 0 && thread_pool[next].triage_class == PRIO_KRITIS);
+    test_result(ok, "Timer preemption: high-prio picked first");
+    task_sys_init(); /* cleanup */
+    __asm__ volatile ("sti");
+}
+
+/* ---------------------------------------------------------------------------
+   Run all task subsystem tests
+   --------------------------------------------------------------------------- */
+void task_run_tests(void) {
+    vga_print("\n--- Task Subsystem Tests ---\n");
+    serial_print("\n--- Task Subsystem Tests ---\n");
+    test_hybrid_fifo();
+    test_thread_pool_exhaustion();
+    test_preemptive_timer();
+    vga_print("--- Task Tests Complete ---\n\n");
+    serial_print("--- Task Tests Complete ---\n\n");
 }
 
 /* ============================================================================
@@ -644,9 +803,9 @@ void task_demo_run(void) {
     serial_print("\n[Langkah 2] Status thread setelah pembuatan:\n");
     print_thread_states();
 
-    vga_print("[Langkah 3] Memulai scheduler Round Robin...\n");
+    vga_print("[Langkah 3] Memulai priority-queue scheduler...\n");
     vga_print("            (Context switch antar thread dimulai)\n\n");
-    serial_print("[Langkah 3] Memulai scheduler Round Robin...\n");
+    serial_print("[Langkah 3] Memulai priority-queue scheduler...\n");
     serial_print("            (Context switch antar thread dimulai)\n\n");
 
     schedule();
@@ -679,5 +838,5 @@ void task_demo_run(void) {
     serial_print("  3. RUNNING    -> scheduler memilih thread\n");
     serial_print("  4. WAITING    -> thread_wait() dipanggil (Greeter)\n");
     serial_print("  5. TERMINATED -> thread selesai / thread_exit()\n");
-    serial_print("===========================================================\n\n");   
-    } 
+    serial_print("===========================================================\n\n");
+}

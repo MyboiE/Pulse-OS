@@ -55,6 +55,10 @@ void print_thread_states(void);
 
 /* ---- Demo & Pengujian ---- */
 void task_demo_run(void);
+void task_run_tests(void);
+void test_hybrid_fifo(void);
+void test_thread_pool_exhaustion(void);
+void test_preemptive_timer(void);
 int task_get_active_count(void);
 thread_t* task_get_thread(int id);
 int task_get_current_id(void);

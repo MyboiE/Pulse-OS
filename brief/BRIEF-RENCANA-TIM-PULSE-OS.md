@@ -74,6 +74,37 @@ Jaga perubahan lokal tiap anggota. Repo saat ini melacak sejumlah `.o` dan `mini
 - Hak akses menunjukkan satu operasi yang diizinkan berhasil dan yang tidak diizinkan ditolak; jangan klaim hardware isolation bila hanya role software.
 - Log/screenshot QEMU aktual dan laporan memenuhi format tugas.
 
+## Audit Minimum PDF Tugas Besar
+
+Scope proyek dibatasi pada syarat minimum PDF dan ide demo IGD yang sudah disepakati: boot/CLI, thread, scheduler, sinkronisasi, deadlock, allocator, RAMDisk VFS, serta kontrol akses sederhana. Tidak menambah framebuffer, network, user mode, atau fitur medis nyata.
+
+| Syarat PDF | Temuan kode dan bukti yang tersedia | Status audit |
+|---|---|---|
+| Boot, CLI, minimal tiga command | `make -B` berhasil. QEMU boot ke prompt `Pulse-OS>`. Tiga command belum diverifikasi satu per satu pada run ini. | Sebagian terbukti |
+| Minimal dua thread dan lima status | TCB, context switch, status NEW/READY/RUNNING/WAITING/TERMINATED, dan demo task ada. QEMU run terkini belum membuktikan dua thread berjalan dan kelima status tercapai. | Belum terbukti lengkap |
+| Preemptive scheduler | PIT/IRQ0 kini tersambung ke `scheduler_tick()`; build dan boot QEMU berhasil. Belum ada uji yang membuktikan timer IRQ mem-preempt thread aktif dan context switch kembali aman. | Terhubung; acceptance preemption belum terbukti |
+| Mutex/semaphore dan shared counter | Implementasi dan `synctest` tersedia. Ada log lama, tetapi bukan verifikasi build terkini. | Sebagian; perlu run ulang |
+| Deadlock dan solusi | `deadlocktest`/`deadlocksafe` tersedia. Skenario unsafe harus dijalankan terisolasi dengan timeout. | Sebagian; perlu run ulang |
+| Dynamic allocator dan OOM | Allocator, `memtest`, `meminfo` tersedia. Perlu bukti runtime terkini untuk alokasi, free, statistik, dan OOM aman. | Sebagian; perlu run ulang |
+| RAMDisk VFS CRUD | Operasi CRUD dan `vfstest` tersedia. Perlu bukti runtime terkini. | Sebagian; perlu run ulang |
+| Kontrol akses sederhana | Role-based software access dan `protecttest` tersedia; bukan isolasi hardware. Jalur CLI end-to-end belum terbukti lengkap. | Sebagian; perlu run ulang |
+
+Build dan boot QEMU terbukti pada pemeriksaan ini; QEMU mencapai `Pulse-OS>`. Timeout emulator setelah 6 detik bukan kegagalan kernel. Bukti lama tidak dianggap sebagai acceptance build terkini. Jangan menambah fitur di luar scope minimum.
+
+## Status audit tim dan tahapan berikutnya
+
+1. Simpan bukti boot/CLI dan jalankan tiga command yang relevan pada QEMU.
+2. Buktikan dua thread benar-benar berjalan dan catat status yang benar-benar tercapai.
+3. Prioritaskan syarat preemption: sambungkan timer IRQ hanya melalui context save/restore yang aman, lalu buktikan reschedule timer di QEMU. Jangan mengklaim preemption sebelum itu.
+4. Jalankan ulang `synctest`, `deadlocksafe`, `memtest`, `vfstest`, dan `protecttest`; jalankan `deadlocktest` hanya di QEMU terisolasi dengan timeout.
+5. Simpan output serial aktual untuk setiap kriteria. Perbarui status checklist berdasarkan bukti itu saja.
+6. Integrasikan hasil minimum ke demo `demo-igd` yang sudah direncanakan; jangan menambah fitur di luar syarat PDF dan ide demo.
+
+RBAC adalah kontrol akses software, bukan autentikasi atau isolasi memori hardware. Shared-counter test kooperatif bukan race pada CPU paralel. Deadlock unsafe tidak masuk demo utama.
+
 ## Bahan laporan
 
 Dokumentasikan arsitektur dan pembagian kerja, desain thread/scheduler/priority queue, sinkronisasi/race, deadlock dan mitigasi, allocator, VFS, kontrol akses, skenario serta hasil uji aktual, kendala, batasan, instruksi build/run, dan penggunaan AI/kode pihak ketiga. Jangan melaporkan hasil uji yang belum benar-benar dijalankan.
+
+Catatan: demo IGD adalah simulasi edukasi, bukan sistem medis. RBAC software bukan isolasi hardware.
+

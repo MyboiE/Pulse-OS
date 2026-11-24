@@ -40,26 +40,52 @@ Membangun antarmuka boot dan shell Pulse-OS, lalu memastikan VFS, allocator, dan
 
 Tandai `[x]` hanya setelah benar-benar dijalankan dan hasilnya dicatat. Build sukses saja bukan bukti fitur berfungsi.
 
-- [x] Kernel berhasil boot di QEMU `-kernel` dengan serial headless. Logo, keyboard GUI, dan keyboard/serial interaktif belum diverifikasi.
-- [ ] CLI menerima command valid, menolak command/argumen tidak valid, dan menangani batas input.
-- [x] Hak akses VFS dua role diuji melalui QEMU: Visitor Administration CRUD `visitor-*`; operasi visitor pada file emergency ditolak; Emergency Reception CRUD emergency berhasil.
-- [x] `protecttest` menjalankan pengujian VFS langsung: visitor create/read/write/delete visitor PASS; visitor create/read/write/delete emergency ditolak PASS; Emergency Reception read/write/delete emergency PASS.
-- [ ] VFS edge cases (duplikat, file tidak ditemukan, kapasitas penuh, nama/data terlalu panjang) belum diuji.
-- [x] `memtest` QEMU PASS: accounting alokasi, free memulihkan kapasitas, OOM menghasilkan NULL, dan heap tetap konsisten setelah OOM.
-- [x] `meminfo` menampilkan statistik aktual melalui serial; hasil awal: heap 1024 KB, terpakai 0 KB, tersedia 1023 KB.
-- [ ] Uji allocator alignment, zero-size, oversized, invalid/double-free, reuse/coalescing belum lengkap.
-- [ ] `demo-igd` belum tersedia/teruji end-to-end. `task2thread` belum diverifikasi tuntas karena input serial berbenturan dengan prompt interaktif.
-- [ ] Simpan log uji QEMU dan langkah reproduksi untuk laporan.
+- [ ] Kernel boot QEMU pernah dilaporkan berhasil via serial, tetapi log reproduksi belum diarsipkan. Logo, keyboard GUI, dan input interaktif belum diverifikasi.
+- [ ] CLI command valid/invalid dan batas input belum acceptance-tested; perubahan terakhir belum build-verified.
+- [ ] RBAC dua role/CRUD dan `protecttest` pernah dilaporkan lulus, tetapi log serial aktual belum tersimpan untuk audit ulang.
+- [ ] `vfstest` dan `memtest` pernah dilaporkan lulus; tanpa log QEMU tersimpan status belum acceptance.
+- [ ] `meminfo` pernah dilaporkan menampilkan statistik; angka historis belum memiliki log yang dapat diperiksa.
+- [ ] `demo-igd` dan `task2thread` belum diverifikasi end-to-end.
+- [ ] Simpan log QEMU dan instruksi reproduksi bagi setiap hasil sebelum menandai PASS.
 - [ ] Laporan mencantumkan desain, hasil aktual, keterbatasan, pembagian tugas, dan penggunaan AI sesuai ketentuan tugas.
 
 ## Status pengerjaan saat ini
 
-- [x] Hak VFS ditegakkan berdasarkan role dan namespace pada operasi CLI serta API VFS.
-- [x] Output `meminfo` dan daftar file tersedia melalui serial.
-- [ ] Pergantian role hanya simulasi, tanpa autentikasi; `role emergency` ditolak setelah turun ke visitor dan pemulihan perlu reboot.
-- [ ] Boot headless via serial sudah diuji; keyboard GUI dan input interaktif lengkap belum diuji.
-- [ ] Demo IGD, scheduler hybrid, dan sinkronisasi menunggu integrasi dengan subsistem Kiran/Qina dan Fathir.
+- RBAC VFS berbasis role dan namespace tersedia pada CLI dan API VFS. `protecttest`/CRUD sebelumnya dilaporkan lulus, tetapi log serial reproducible belum disimpan.
+- `vfstest`, `memtest`, `meminfo`, dan daftar file tersedia lewat CLI. Laporan PASS pada checklist historis belum disertai log QEMU yang tersimpan; jalankan ulang dan simpan output sebelum menyatakan bukti final.
+- CLI guard panjang command ada pada `cli_process_command()`, tetapi input loop belum benar-benar menolak overflow: karakter setelah buffer penuh diabaikan dan command terpotong dapat diproses. Perlu perbaikan + uji nyata.
+- `help` sudah dirapikan agar hanya menampilkan satu entri `memtest`.
+- Perubahan CLI terakhir belum diverifikasi; percobaan `help` serial tidak menangkap output help, dan pernah ada warning unused variable `overflow`. Build ulang dan bereskan warning sebelum klaim selesai.
+- Pergantian role adalah simulasi tanpa autentikasi. Setelah turun ke Visitor Administration, `role emergency` ditolak; pemulihan memerlukan reboot.
+- Boot headless via serial pernah diuji; keyboard GUI, logo/boot flow dan input interaktif belum diverifikasi.
+- `demo-igd` belum tersedia. Integrasi scheduler dan lock belum dilakukan.
+
+## Langkah Nijar berikutnya
+
+1. Perbaiki overflow di `cli_run()`: buang sisa baris sampai Enter, tolak seluruh command, tampilkan error serial/VGA; jangan jalankan prefix yang terpotong.
+2. Uji command valid/invalid, argumen kosong/salah, dan panjang batas lewat QEMU serial dan keyboard GUI; simpan log aktual.
+3. Setelah kontrak API Qina/Fathir stabil, integrasikan VFS, allocator, role, scheduler, dan lock ke satu `demo-igd`.
+4. Buat cleanup fixture demo yang hanya menghapus record milik demo; tampilkan `meminfo` sebelum/sesudah.
+5. Lengkapi laporan dengan perintah reproduksi, log, screenshot, batasan RBAC, dan batasan simulasi edukasi.
 
 ## Dependensi tim
 
-Minta Kiran/Qina menetapkan API untuk membuat/menjalankan skenario task serta melaporkan event/skor scheduler. Minta Fathir menetapkan API lock dan bentuk uji shared counter/deadlock. Jangan mengarang pemanggilan API sebelum header final tersedia.
+- Kiran/Qina: scheduler triase/hybrid/FIFO sudah ada; scan bukan priority queue eksplisit, timer preemption dan uji deterministik belum terbukti.
+- Fathir (origin `862f765`): mutex/semaphore wait queue, ownership, block/wake, shared-room API, dan test command sudah masuk. Belum acceptance-tested; verifikasi init objek, waiter handoff, block/wake, counter, deadlock-safe.
+- Nijar: CLI/VFS/allocator/RBAC dan orkestrasi `demo-igd`; perbaiki overflow/warning CLI, integrasikan setelah API subsistem lulus test.
+- Build: setelah pull, `make` gagal `undefined reference to test_deadlock_resolved` akibat source/object lokal tidak sinkron. Compile/link manual berhasil tapi belum boot/QEMU. Jangan `make clean` di working tree bersama.
+
+## Bukti dan batas klaim
+
+- Simpan log lengkap untuk `protecttest`, `vfstest`, `memtest`, `meminfo`, CLI invalid/boundary, dan `demo-igd`.
+- Checklist di atas adalah status kerja, bukan bukti arsip. Jangan tandai acceptance final sebelum log aktual disimpan.
+- RBAC ini pemeriksaan software, bukan isolasi ring-3 atau autentikasi.
+- IGD adalah simulasi edukasi, bukan alat medis.
+
+## Riwayat sinkronisasi
+
+- Branch lokal `main` diperbarui fast-forward ke `origin/main` pada commit `385e4ea`; perubahan lokal Nijar dipertahankan.
+- Working tree memiliki perubahan lokal yang belum commit. Jangan melakukan reset/clean atau menghapus artefak tanpa memeriksa `git status`.
+- `help` hanya punya satu baris `memtest`; build/verifikasi akhir sesudah penyuntingan CLI masih perlu dilakukan.
+
+

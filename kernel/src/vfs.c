@@ -117,6 +117,67 @@ int vfs_delete(const char *name) {
   return 0;
 }
 
+static void vfs_test_result(int ok, const char *message) {
+  const char *result = ok ? "[PASS] " : "[FAIL] ";
+  vga_print(result);
+  vga_print(message);
+  vga_print("\n");
+  serial_print(result);
+  serial_print(message);
+  serial_print("\n");
+}
+
+void vfs_self_test(void) {
+  char data[MAX_FILE_SIZE + 1];
+  char long_name[MAX_FILENAME + 1];
+  char names[MAX_FILES][MAX_FILENAME];
+  int created[MAX_FILES] = {0};
+  int count = 0;
+
+  for (int i = 0; i < MAX_FILE_SIZE; i++) data[i] = 'x';
+  data[MAX_FILE_SIZE] = '\0';
+  for (int i = 0; i <= MAX_FILENAME; i++) long_name[i] = 'n';
+  long_name[MAX_FILENAME] = '\0';
+
+  int ok = vfs_create("vfstest-base") == 0;
+  vfs_test_result(ok, "create succeeds");
+  vfs_test_result(vfs_create("vfstest-base") != 0, "duplicate filename rejected");
+  vfs_test_result(vfs_read("vfstest-missing", data, sizeof(data)) != 0,
+                  "missing file read rejected");
+  vfs_test_result(vfs_write("vfstest-missing", "x") != 0,
+                  "missing file write rejected");
+  vfs_test_result(vfs_delete("vfstest-missing") != 0,
+                  "missing file delete rejected");
+  vfs_test_result(vfs_create(long_name) != 0, "overlong filename rejected");
+  vfs_test_result(vfs_write("vfstest-base", data) != 0,
+                  "oversized file data rejected");
+  data[MAX_FILE_SIZE - 1] = '\0';
+  int exact_write = ok && vfs_write("vfstest-base", data) == 0;
+  vfs_test_result(exact_write, "maximum supported file size accepted");
+  vfs_test_result(exact_write && vfs_read("vfstest-base", data, MAX_FILE_SIZE - 1) != 0,
+                  "undersized read buffer rejected");
+  vfs_test_result(exact_write && vfs_read("vfstest-base", data, MAX_FILE_SIZE) == 0,
+                  "exact-fit read buffer accepted");
+  if (ok) vfs_delete("vfstest-base");
+
+  for (int i = 0; i < MAX_FILES; i++) {
+    names[i][0] = 'v'; names[i][1] = 'f'; names[i][2] = 's';
+    names[i][3] = 't'; names[i][4] = '0';
+    names[i][5] = (char)('0' + (i / 10));
+    names[i][6] = (char)('0' + (i % 10)); names[i][7] = '\0';
+    if (vfs_create(names[i]) == 0) {
+      created[i] = 1;
+      count++;
+    } else {
+      break;
+    }
+  }
+  vfs_test_result(count > 0 && vfs_create("vfstest-overflow") != 0,
+                  "full RAMDisk rejects create");
+  for (int i = 0; i < MAX_FILES; i++)
+    if (created[i]) vfs_delete(names[i]);
+}
+
 void vfs_list(void) {
   vga_print("\n--- DAFTAR FILE VFS (RAMDisk) ---\n");
   int count = 0;
@@ -134,3 +195,30 @@ void vfs_list(void) {
   if (count == 0)
     vga_print("(VFS Kosong)\n");
 }
+
+int test_input_overflow(void) {
+  vfs_create("ovfl-chk.tmp");
+  char big_buf[MAX_FILE_SIZE + 4];
+  for (int i = 0; i < MAX_FILE_SIZE + 3; i++) big_buf[i] = 'X';
+  big_buf[MAX_FILE_SIZE + 3] = '\0';
+  int res = vfs_write("ovfl-chk.tmp", big_buf);
+  vfs_delete("ovfl-chk.tmp");
+  return (res != 0); /* Berhasil jika penulisan melebihi kapasitas ditolak */
+}
+
+int test_visitor_denial(void) {
+  user_role_t old_role = protect_current_role();
+  protect_set_role(ROLE_VISITOR_ADMIN);
+
+  int denied_create = (vfs_create("patient-unauth.tmp") != 0);
+  int denied_write  = (vfs_write("patient-A.txt", "unauth") != 0);
+  int denied_read   = (vfs_read("patient-A.txt", (char[16]){0}, 16) != 0);
+  int denied_delete = (vfs_delete("patient-A.txt") != 0);
+
+  int allowed_visitor = (vfs_create("visitor-demo.tmp") == 0);
+  vfs_delete("visitor-demo.tmp");
+
+  protect_set_role(old_role);
+  return (denied_create && denied_write && denied_read && denied_delete && allowed_visitor);
+}
+

@@ -5,6 +5,7 @@
 #include "../include/vfs.h"
 #include "../include/sync.h"
 #include "../include/protect.h"
+#include "../include/interrupt.h"
 
 void kmain(void) {
     // Inisialisasi Driver Display & Serial & Keyboard
@@ -17,6 +18,7 @@ void kmain(void) {
     vfs_init();
     task_sys_init();
     protect_init();
+    interrupt_init();
 
     // Cetak Banner & Logo ASCII Booting
     cli_print_logo();
@@ -64,6 +66,11 @@ void sys_shutdown(void) {
 
     // VirtualBox
     outw(0x4004, 0x3400);
+
+    // QEMU isa-debug-exit / debugcon exit
+    outb(0x501, 0x00);
+    outw(0x501, 0x00);
+    outb(0xF4, 0x00);
 
     // Fallback: halt CPU jika hypervisor tidak exit otomatis atau berjalan di bare-metal
     vga_print("Sistem dihentikan. Komputer dapat dimatikan dengan aman.\n");

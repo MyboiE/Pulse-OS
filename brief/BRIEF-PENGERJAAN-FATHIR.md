@@ -33,12 +33,39 @@ Fathir mengembangkan primitive sinkronisasi kernel dan skenario uji shared data 
 
 ## Kriteria selesai
 
-- API final dan cara pemanggilan diserahkan kepada pemilik demo.
-- Uji counter dengan/tanpa lock berjalan dengan hasil aktual tercatat.
-- Scheduler mem-block dan membangunkan waiter dengan transisi status benar.
-- Deadlock hanya dapat memengaruhi uji terisolasi; mitigasi melalui lock ordering didemonstrasikan.
-- Hasil QEMU/log dan penjelasan untuk laporan tersedia.
+- [x] API mutex/semaphore, ownership, wait queue, shared-room IGD, dan deadlock mitigation tersedia di header.
+- [x] Uji counter dengan/tanpa lock berjalan dan hasil aktual tersimpan (expected locked total: 100): log `/tmp/pulse-subsystem-tests.log`, tanpa lock `50`, dengan mutex `100`.
+- [ ] Scheduler mem-block dan membangunkan waiter dengan transisi status benar; handoff mutex/semaphore dan no-lost-wakeup teruji.
+- [x] Deadlock hanya memengaruhi uji terisolasi; `deadlocksafe` selesai pada run QEMU. `deadlocktest` tetap tidak dijalankan karena berpotensi macet.
+- [x] Hasil QEMU/log dan penjelasan laporan tersedia: `/tmp/pulse-subsystem-tests.log`.
+
+Acceptance tersisa: handoff/block-wake/no-lost-wakeup dan `deadlocktest` terisolasi dengan timeout.
+## Status audit kode saat ini
+
+- Commit origin `862f765` menambahkan mutex/semaphore dengan FIFO wait queue, ownership check dan panggilan `thread_block()`/`thread_wake()`, plus API shared room IGD.
+- `synctest`, `deadlocktest`, `deadlocksafe` ditambahkan ke CLI. Implementasi test ada, tetapi hasil aktual belum disimpan sebagai log QEMU.
+- Audit source menunjukkan risiko yang perlu diuji: `mutex_init()` membaca `initialized` sebelum objek dijamin zero-initialized; caller saat ini menghindarinya dengan mengatur field manual. `sem_init()` serupa. `sem_wait()` setelah wake perlu memastikan permit/handoff tidak hilang.
+- Test counter memaksa yield antara load/store; hasil race bergantung perilaku scheduler dan wajib dicatat, bukan diasumsikan.
+- Deadlock test dapat macet permanen; hanya jalankan pada QEMU terisolasi dengan timeout.
+- Build penuh setelah pull gagal link karena object `kernel/src/sync.o` stale / tidak dibangun ulang; compile `sync.c` langsung dan link manual berhasil, namun bukan verifikasi clean build/QEMU.
+- `thread_block()`/`thread_wake()` dan jalur deadlock perlu diverifikasi terhadap lifecycle scheduler. Jangan anggap aman hanya karena API dipanggil.
+
+## Langkah berikutnya
+
+1. Audit dan uji race pada init mutex/semaphore yang membaca `initialized` dari objek belum tentu terinisialisasi; desain init harus aman untuk objek baru.
+2. Uji handoff mutex, semaphore permit setelah wake, FIFO waiter, self-lock, non-owner unlock, queue penuh, dan block/wake terhadap scheduler.
+3. Pastikan `synctest` benar-benar interleave; pastikan counter dengan lock berakhir tepat 100. Catat nilai aktual dan exit status.
+4. Jalankan `deadlocktest` hanya pada QEMU terisolasi dengan timeout; jalankan `deadlocksafe` dan buktikan dua thread selesai.
+5. Perbaiki `make` dependency/source selection agar link selalu memakai `kernel/src/sync.c` aktual; jalankan build valid dan simpan log QEMU.
+6. Setelah uji lulus, serahkan kontrak API/event format kepada Nijar untuk integrasi demo IGD.
 
 ## Koordinasi
 
 Sepakati bersama Kiran/Qina kontrak block/wake sebelum implementasi integrasi. Sepakati dengan pemilik CLI nama command uji, format event, dan reset skenario. Jangan mengubah API/header tim lain tanpa koordinasi.
+
+Jangan tandai kriteria selesai hanya berdasarkan stub, pesan simulasi, atau build sukses; arsipkan output uji aktual.
+
+## Batas klaim
+
+Sinkronisasi saat ini belum menjamin progress saat contention dan belum aman untuk menjelaskan sebagai mutex scheduler-aware. Deadlock demo tidak boleh dimasukkan ke `demo-igd` utama sebelum isolasi dan pemulihan terbukti.
+

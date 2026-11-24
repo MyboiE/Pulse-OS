@@ -97,7 +97,16 @@ static void test_assert(int ok, const char* message) {
 
 void memory_self_test(void) {
     size_t before_used, before_free, used, available;
+    void* aligned = kmalloc(1);
+    test_assert(aligned && ((unsigned long)aligned & (ALIGNMENT - 1u)) == 0,
+                "allocation is aligned");
+    kfree(aligned);
+    test_assert(kmalloc(0) == NULL, "zero-size allocation rejected");
     memory_get_stats(&before_used, &before_free);
+    kfree(heap.bytes + HEAP_SIZE - 1u);
+    memory_get_stats(&used, &available);
+    test_assert(used == before_used && available == before_free,
+                "invalid pointer free ignored");
     void* a = kmalloc(128);
     void* b = kmalloc(256);
     memory_get_stats(&used, &available);
@@ -106,10 +115,16 @@ void memory_self_test(void) {
     kfree((unsigned char*)a + 1);
     kfree(a);
     kfree(a);
+    memory_get_stats(&used, &available);
+    test_assert(used == before_used + 256 && available < before_free,
+                "double free leaves live allocation intact");
     kfree(b);
     memory_get_stats(&used, &available);
     test_assert(used == before_used && available == before_free,
                 "free restores heap capacity");
+    void* reused = kmalloc(512);
+    test_assert(reused != NULL, "freed/coalesced heap space can be reused");
+    kfree(reused);
     void* full = kmalloc(HEAP_SIZE);
     test_assert(full == NULL, "out-of-memory returns NULL without kernel crash");
     memory_get_stats(&used, &available);

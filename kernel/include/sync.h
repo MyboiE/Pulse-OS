@@ -49,5 +49,6 @@ void test_deadlock_scenario(void);
 void igd_sync_init(int initial_rooms);
 int  igd_use_shared_room(const char* patient_name);
 void test_deadlock_resolved(void);
+int  test_lock_handoff(void);
 
 #endif

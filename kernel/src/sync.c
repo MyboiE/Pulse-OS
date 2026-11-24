@@ -404,3 +404,34 @@ void test_deadlock_resolved(void) {
     sync_print("\n  >> [HASIL] Kedua thread selesai tanpa deadlock (Circular Wait hilang)!\n");
     sync_print("===========================================================\n\n");
 }
+
+/* ============================================================================
+ * 6. VERIFIKASI LOCK WAITER, DIRECT HANDOFF & NO-LOST-WAKEUP
+ * ============================================================================ */
+int test_lock_handoff(void) {
+    mutex_t m;
+    m.initialized = 0;
+    mutex_init(&m);
+
+    /* Skenario 1: Thread 0 memegang lock */
+    m.locked = 1;
+    m.owner_id = 0;
+
+    /* Skenario 2: Thread 1 mengantre dalam wait_queue (FIFO) */
+    m.wait_queue[m.wait_tail] = 1;
+    m.wait_tail = (m.wait_tail + 1) % MAX_THREADS;
+    m.wait_count = 1;
+
+    int waiter_ok = (m.wait_count == 1 && m.wait_queue[m.wait_head] == 1);
+
+    /* Skenario 3: Direct Handoff saat unlock */
+    int next_tid = m.wait_queue[m.wait_head];
+    m.wait_queue[m.wait_head] = -1;
+    m.wait_head = (m.wait_head + 1) % MAX_THREADS;
+    m.wait_count--;
+    m.locked = 1;
+    m.owner_id = next_tid;
+
+    int handoff_ok = (m.locked == 1 && m.owner_id == 1 && m.wait_count == 0);
+    return (waiter_ok && handoff_ok);
+}

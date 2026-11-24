@@ -62,6 +62,80 @@ Implementasikan bertahap: buktikan dahulu kelas triase + FIFO, lalu aktifkan sko
 4. Jalankan build bersih hanya pada salinan/branch aman; repo saat ini melacak artefak build, jadi hindari `make clean` di working tree bersama tanpa koordinasi.
 5. Jalankan skenario berulang dan pastikan urutan deterministik; catat hasil sebenarnya.
 
+## Status audit dan rencana aktual
+
+Command `demo-igd` tersedia dan dijalankan di QEMU sebelum heap scheduler diganti. Log lama `/tmp/pulse-demo-igd.log` bukan verifikasi versi heap baru. Demo saat ini baseline edukasi; belum membuktikan timer preemption atau concurrency paralel.
+
+Yang sudah tersedia sebagai fondasi kode:
+
+- VFS RAMDisk, operasi file, namespace `visitor-*`, pemeriksaan role, dan test harness `vfstest`.
+- Allocator dan test harness `memtest`; `meminfo` menampilkan statistik.
+- Selector scheduler kini memakai binary min-heap eksplisit dengan triase → skor hybrid → FIFO; heap dibangun ulang dari `thread_pool` setiap pemilihan, belum persistent ready queue. Timer IRQ belum terbukti memanggil `scheduler_tick()`.
+- Origin `862f765` menambahkan mutex/semaphore wait queue, ownership check, `thread_block()`/`thread_wake()`, API shared room IGD, serta command `synctest`, `deadlocktest`, `deadlocksafe`. `demo-igd` memakai mutex shared room; run QEMU selesai, tetapi handoff/block-wake dan fail-safe alokasi thread belum diuji.
+- Build `make -B` kini berhasil tanpa warning; target mencakup `kernel/src/sync.c`, lalu link ke `mini-os.bin`.
+- Run QEMU terarsip `/tmp/pulse-subsystem-tests.log`: `protecttest`, `vfstest`, `memtest`, `synctest`, `deadlocksafe`, `shutdown`; 29 `[PASS]`, 0 `[FAIL]`. Counter synctest tanpa lock `50` (expected `100`), dengan mutex `100`; ini demonstrasi cooperative interleaving, bukan race CPU paralel.
+- `protecttest` membuktikan visitor ditolak untuk operasi emergency di test harness; perintah CRUD CLI umum tetap perlu pemeriksaan guard agar tidak menganggap penolakan harness sebagai perlindungan semua jalur.
+- Overflow input CLI diperbaiki untuk menolak command; belum diuji dengan baris melebihi kapasitas lewat serial.
+- `demo-igd` rerun dengan heap scheduler terbaru; log `/tmp/pulse-demo-igd-latest.log` membuktikan pembacaan VFS record, dispatch aktual `KRITIS > SERIOUS > STABIL`, tiga pemrosesan shared room, transisi READY → RUNNING → TERMINATED, dan cleanup fixture. Tidak menguji tie-break intra-kelas.
+- CRUD umum CLI (`create/rm/cat/write`) belum semuanya dibatasi role emergency; verifikasi jalur RBAC masih wajib sebelum menganggap akses demo aman.
+- Log demo belum menguji visitor denial dalam command demo, fail-safe jika thread allocation gagal, atau counter lock final yang eksplisit.
+
+Checklist penerimaan demo:
+
+- [x] Command `demo-igd` tersedia; run QEMU lama mencakup fixture, shared room, cleanup.
+- [x] Rerun demo QEMU dengan binary scheduler heap terbaru; log aktual `/tmp/pulse-demo-igd-latest.log`.
+- [x] Dispatch aktual tiga thread mengurut KRITIS → SERIOUS → STABIL; log menunjukkan triage, hybrid, FIFO, READY → RUNNING → TERMINATED serta shared-room lock. Ini membuktikan kasus tiga kelas triase tersebut, bukan tie-break FIFO/hybrid intra-kelas.
+- [ ] Uji deterministik hybrid intra-kelas dan FIFO tie-break.
+- [ ] QEMU shutdown command tidak menghentikan emulator; run dihentikan oleh timeout setelah hasil demo tervalidasi.
+
+- [ ] Lifecycle penuh, block/wake dan preemption masih belum dibuktikan.
+- [ ] Verifikasi visitor denial end-to-end pada jalur CLI CRUD.
+- [ ] Verifikasi lock waiter/handoff/no-lost-wakeup dan counter aktual.
+- [ ] Verifikasi input overflow, fail-safe alokasi thread, dan ulang demo bersih.
+- [ ] Timer preemption hanya jika IRQ/PIT menghubungkan `scheduler_tick()`; saat ini belum terbukti.
+
+### Tahapan berikutnya untuk demo layak presentasi
+
+1. Uji akses Visitor terhadap emergency lewat CLI dan pastikan command CRUD tidak memberi akses silang.
+2. Uji `thread_block()`/`thread_wake()`, ownership mutex, semaphore permit, serta kegagalan alokasi task.
+3. Jalankan `deadlocktest` di QEMU terisolasi dengan timeout.
+4. Uji command overflow lewat serial dan pastikan baris panjang ditolak utuh.
+5. Ulangi `demo-igd` beberapa kali, bandingkan urutan dan pastikan fixture bersih tiap run.
+6. Bila demo menyatakan preemption, integrasikan scheduler ke timer IRQ dan buktikan di log; jika tidak, jelaskan batas scheduler kooperatif.
+
+### Klaim tertunda
+
+Demo terpadu kini berjalan dan log tersedia, tetapi belum lengkap untuk acceptance final. Belum terbukti timer preemption, semaphore handoff, deadlock scenario terisolasi, CLI visitor denial end-to-end, overflow input, dan fail-safe alokasi. Shared counter synctest menunjukkan interleaving kooperatif, bukan race CPU paralel.
+Yang sudah tersedia sebagai fondasi kode:
+
+- VFS RAMDisk, operasi file, namespace `visitor-*`, pemeriksaan role, dan test harness `vfstest`.
+- Allocator dan test harness `memtest`; `meminfo` menampilkan statistik.
+- Selector scheduler kini memakai binary min-heap eksplisit dengan triase → skor hybrid → FIFO; heap dibangun ulang dari `thread_pool` setiap pemilihan, belum persistent ready queue. Timer IRQ belum terbukti memanggil `scheduler_tick()`.
+- Origin `862f765` menambahkan mutex/semaphore wait queue, ownership check, `thread_block()`/`thread_wake()`, API shared room IGD, serta command `synctest`, `deadlocktest`, `deadlocksafe`. `demo-igd` memakai mutex shared room; run QEMU selesai, tetapi handoff/block-wake dan fail-safe alokasi thread belum diuji.
+- Build `make -B` kini berhasil tanpa warning; target mencakup `kernel/src/sync.c`, lalu link ke `mini-os.bin`.
+- Run QEMU terarsip `/tmp/pulse-subsystem-tests.log`: `protecttest`, `vfstest`, `memtest`, `synctest`, `deadlocksafe`, `shutdown`; 29 `[PASS]`, 0 `[FAIL]`. Counter synctest tanpa lock `50` (expected `100`), dengan mutex `100`; ini demonstrasi cooperative interleaving, bukan race CPU paralel.
+- `protecttest` membuktikan visitor ditolak untuk operasi emergency di test harness; perintah CRUD CLI umum tetap perlu pemeriksaan guard agar tidak menganggap penolakan harness sebagai perlindungan semua jalur.
+- Overflow input CLI diperbaiki untuk menolak command; belum diuji dengan baris melebihi kapasitas lewat serial.
+- `demo-igd` rerun dengan heap scheduler terbaru; log `/tmp/pulse-demo-igd-latest.log` membuktikan pembacaan VFS record, dispatch aktual `KRITIS > SERIOUS > STABIL`, tiga pemrosesan shared room, transisi READY → RUNNING → TERMINATED, dan cleanup fixture. Tidak menguji tie-break intra-kelas.
+- CRUD umum CLI (`create/rm/cat/write`) belum semuanya dibatasi role emergency; verifikasi jalur RBAC masih wajib sebelum menganggap akses demo aman.
+- Log demo belum menguji visitor denial dalam command demo, fail-safe jika thread allocation gagal, atau counter lock final yang eksplisit.
+
+### Tahapan berikutnya untuk demo layak presentasi
+
+1. Uji akses Visitor terhadap emergency lewat CLI dan pastikan command CRUD tidak memberi akses silang.
+2. Uji `thread_block()`/`thread_wake()`, ownership mutex, semaphore permit, serta kegagalan alokasi task.
+3. Jalankan `deadlocktest` di QEMU terisolasi dengan timeout.
+4. Uji command overflow lewat serial dan pastikan baris panjang ditolak utuh.
+5. Ulangi `demo-igd` beberapa kali, bandingkan urutan dan pastikan fixture bersih tiap run.
+6. Bila demo menyatakan preemption, integrasikan scheduler ke timer IRQ dan buktikan di log; jika tidak, jelaskan batas scheduler kooperatif.
+
+### Klaim tertunda
+
+Demo terpadu kini berjalan dan log tersedia, tetapi belum lengkap untuk acceptance final. Belum terbukti timer preemption, semaphore handoff, deadlock scenario terisolasi, CLI visitor denial end-to-end, overflow input, dan fail-safe alokasi. Shared counter synctest menunjukkan interleaving kooperatif, bukan race CPU paralel.
+
 ## Batasan dan pelaporan
 
 Sebut hasil sebagai simulasi kernel, bukan hardware IGD atau sistem medis. Jelaskan bahwa role-based access control bukan isolasi ring-3/memori hardware. Lampirkan skenario, log aktual, hasil uji, kegagalan yang diketahui, serta keterbatasan.
+
+Jangan klaim preemptive timer, priority queue, race/deadlock, atau mutex scheduler-aware sebelum implementasi dan bukti uji mendukungnya.
+
